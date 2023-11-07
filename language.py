@@ -1,7 +1,9 @@
 import json
+import os
 import numpy.random as nprand
 import random
 from collections import defaultdict
+from copy import deepcopy
 
 
 # Method used to save sentences to a txt file
@@ -9,7 +11,7 @@ def save_sentences(sentences, filepath):
     # Open the file write only
     with open(filepath, "w") as file:
         # We want each string to be ended with a period and followed by a new line
-        file.write(".\n".join(sentences) )
+        file.write(".\n".join(sentences))
 
 
 # Helper method used for probabilistic CFGs
@@ -30,20 +32,47 @@ def choose_state(rule, is_generation):
     return random.choices(choices, probabilities)[0], None if is_generation else rule[0]
 
 
+# Load a Language object form a file
+def load_language(directory_path):
+    # Retrieve it from JSON format
+    with open(os.path.join(directory_path, "mylang.json"), "r") as file:
+        data = json.load(file)
+    # Create an object with that data
+    new_language = Language()
+    new_language.phonemes = data["phonemes"]
+    new_language.syllables = data["syllables"]
+    new_language.syllable_lambda = data["syllable_lambda"]
+    new_language.generation_rules = data["generation_rules"]
+    new_language.unconditioned_rules = data["unconditioned_rules"]
+    new_language.agreement_rules = data["agreement_rules"]
+    new_language.words = data["words"]
+    # We want to keep the set datatype, so we have to add this line
+    new_language.word_set = set(data["word_set"])
+    # We changed the paradigms to have strings as keys, so now we need to undo that change
+    temporary_paradigms = []
+    for paradigm in data["inflection_paradigms"]:
+        # Add the paradigms back in the original format, with [pos, {feature tuple: affix}]
+        temporary_paradigms.append([paradigm[0],
+                                    {tuple(key.split(".")): value for key, value in paradigm[1].items()}])
+    new_language.inflection_paradigms = temporary_paradigms
+    return new_language
+
+
 # Language class used to generate words according to a distribution
 class Language:
     # Constructor
-    def __init__(self):
+    def __init__(self, language=None):
+        # All the fields depend on whether language is passed in
         # Maps C and V to a list of phonemes
-        self.phonemes = {}
-        self.syllables = []
-        self.syllable_lambda = 1
-        self.generation_rules = {}
-        self.unconditioned_rules = {}
-        self.agreement_rules = {}
-        self.words = defaultdict(list)
-        self.word_set = set()
-        self.inflection_paradigms = []
+        self.phonemes = {} if language is None else deepcopy(language.phonemes)
+        self.syllables = [] if language is None else deepcopy(language.syllables)
+        self.syllable_lambda = 1 if language is None else deepcopy(language.syllable_lambda)
+        self.generation_rules = {} if language is None else deepcopy(language.generation_rules)
+        self.unconditioned_rules = {} if language is None else deepcopy(language.unconditioned_rules)
+        self.agreement_rules = {} if language is None else deepcopy(language.agreement_rules)
+        self.words = {} if language is None else deepcopy(language.words)
+        self.word_set = set() if language is None else deepcopy(language.word_set)
+        self.inflection_paradigms = [] if language is None else deepcopy(language.inflection_paradigms)
 
     # Set the phonemes
     def set_phonemes(self, phonemes):
@@ -129,6 +158,8 @@ class Language:
     # Add words to our lexicon at the end of the list for that part of speech
     # Words can be individual words or tuples consisting of (word, paradigm_number)
     # Paradigm is a mandatory string parameter which defines the words as being part of that paradigm
+    # Returns a list containing the new words
+    # If you want to include more than one property in the paradigm, separate them with periods
     def generate_words(self, num_words, part_of_speech, paradigm):
         # Generate words with each phoneme in a given class appearing with the same frequency
         # All syllable types appear with equal frequency too
@@ -151,9 +182,19 @@ class Language:
                 self.word_set.add(word)
         # Add the new_words to the part of speech they were made for
         self.words[part_of_speech] += new_words
+        # Now return the list in case it's needed
+        return new_words
 
     # Generate sentences with a Zipfian distribution
-    def generate_sentences(self, num_sentences):
+    # Required words is by default None.
+    #   If you want to generate sentences with words from a specific set, you pass in a dictionary.
+    #   This dictionary maps pos of words to a list tuples of words and paradigms
+    #   For example, required_words = {pos: []}
+    # If you're generating sentences with required_words, note that all parts of speech not in required_words will
+    #   be drawn with Zipf's distribution as normal. This may mean that if a sentence is generated with no terminal
+    #   pos in required words, then there won't be any words from required words in the sentence, and that if a
+    #   sentence has more than one terminal pos in required words, all of those will be drawn from required words.
+    def generate_sentences(self, num_sentences, required_words=None):
         # Prepare the sentences we want
         sentences = []
         for _ in range(num_sentences):
@@ -213,17 +254,25 @@ class Language:
                 # If it is outside the range of our list, we generate another one
                 # Otherwise, we use it
                 index = -1
-                while index == -1:
-                    # We generate an index, subtracting 1 since Zipf's starts from 1
-                    index = nprand.zipf(skew, 1)[0] - 1
-                    # If it's out of the range, we reset the index to 0
-                    if index >= len(self.words[pos]):
-                        index = -1
-                # If it is in the range, we exit our loop and get the word and paradigm
-                word, paradigm = self.words[pos][index]
+                # If there are no word which we are required to use, then we're good!
+                # If there are required words but the part of speech is not in required words, we get a word as normal
+                if required_words is None or pos not in required_words:
+                    while index == -1:
+                        # We generate an index, subtracting 1 since Zipf's starts from 1
+                        index = nprand.zipf(skew, 1)[0] - 1
+                        # If it's out of the range, we reset the index to 0
+                        if index >= len(self.words[pos]):
+                            index = -1
+                    # If it is in the range, we exit our loop and get the word and paradigm
+                    word, paradigm = self.words[pos][index]
+                # If we want to generate words from a list of words, then we draw uniformly from that set
+                else:
+                    # Get the words at random from the list
+                    word, paradigm = random.choice(required_words[pos])
                 # Add the sentence to the word_sentence
                 # We also make the part of speech and the existing paradigm a new feature
-                preagreement_lexemes.append([word, properties + [pos, paradigm]])
+                # We use paradigm.split(".") since if an entry has more than one property we mark them with . boundaries
+                preagreement_lexemes.append([word, properties + [pos] + paradigm.split(".")])
 
             # ADD AGREEMENT PROPERTIES, NOT YET INFLECTING
             # Now we iterate over every word to see if it must agree with any other words
@@ -321,9 +370,11 @@ class Language:
         return sentences
 
     # Save the language in a given file
-    def dump_language(self, filepath):
+    def dump_language(self, directory_path):
+        # Make the path to the file, if it doesn't exist
+        os.makedirs(directory_path, exist_ok=True)
         # Store it in JSON format
-        with open(filepath, 'w') as file:
+        with open(os.path.join(directory_path, "mylang.json"), 'w') as file:
             # Pretty much all data can be stored as is
             data = {
                 "phonemes": self.phonemes,
@@ -334,7 +385,7 @@ class Language:
                 "agreement_rules": self.agreement_rules,
                 "words": self.words,
                 # Word_set must first be converted to a list
-                "word_set": list(self.word_set)
+                "word_set": list(sorted(self.word_set) )
             }
             # Inflection paradigms has tuples as keys.
             # We want to replace each tuple with a string with dots separating the properties
@@ -342,33 +393,10 @@ class Language:
             for paradigm in self.inflection_paradigms:
                 # The first value of every rule should be the same
                 # The second value is the same as well, except each key is now a string with periods between properties
-                temporary_paradigms.append([paradigm[0], {".".join(key): value for key, value in paradigm[1].items()}])
+                # We only join the different parts with . if the key is a tuple
+                temporary_paradigms.append([paradigm[0], {(".".join(key) if type(key) == tuple else key): value
+                                                          for key, value in paradigm[1].items()}])
             # Don't forget to add it to the datafile!
             data["inflection_paradigms"] = temporary_paradigms
             # Dump the datafile
             json.dump(data, file)
-
-    # Load a Language object form a file
-    def load_language(self, filepath):
-        # Retrieve it from JSON format
-        with open(filepath, "r") as file:
-            data = json.load(file)
-        # Create an object with that data
-        new_language = Language()
-        new_language.phonemes = data["phonemes"]
-        new_language.syllables = data["syllables"]
-        new_language.syllable_lambda = data["syllable_lambda"]
-        new_language.generation_rules = data["generation_rules"]
-        new_language.unconditioned_rules = data["unconditioned_rules"]
-        new_language.agreement_rules = data["agreement_rules"]
-        new_language.words = data["words"]
-        # We want to keep the set datatype, so we have to add this line
-        new_language.word_set = set(data["word_set"])
-        # We changed the paradigms to have strings as keys, so now we need to undo that change
-        temporary_paradigms = []
-        for paradigm in data["inflection_paradigms"]:
-            # Add the paradigms back in the original format, with [pos, {feature tuple: affix}]
-            temporary_paradigms.append([paradigm[0],
-                                        {tuple(key.split(".")): value for key, value in paradigm[1].items()}])
-        new_language.inflection_paradigms = temporary_paradigms
-        return new_language

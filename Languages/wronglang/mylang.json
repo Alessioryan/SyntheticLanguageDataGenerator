@@ -6766,12 +6766,12 @@
         [
             "verb",
             {
-                "sg.1st": "-me",
-                "sg.2nd": "-ju",
-                "sg.3rd": "-si",
-                "pl.1st": "-we",
-                "pl.2nd": "-jal",
-                "pl.3rd": "-dej"
+                "sg.1st": "-ju",
+                "sg.2nd": "-si",
+                "sg.3rd": "-we",
+                "pl.1st": "-jal",
+                "pl.2nd": "-dej",
+                "pl.3rd": "-me"
             }
         ],
         [
