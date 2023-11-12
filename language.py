@@ -58,6 +58,59 @@ def load_language(directory_path):
     return new_language
 
 
+# Method used to inflect the agreed_lexeme_sequences according to some rules
+# agreed_lexeme_sequences is a list of agreed_lexeme_sequences, paradigms is formatted as Language.inflection_paradigms
+def inflect(agreed_lexeme_sequences, paradigms):
+    # Make sure that a list of lists is passed in
+    assert type(agreed_lexeme_sequences[0]) is list
+    inflected_sentences = []
+    # For each agreed_lexeme_sequence, we want to run the agreement algorithm
+    for agreed_lexeme_sequence in agreed_lexeme_sequences:
+        inflected_words = []
+        # Do agreement over each lexeme in the sequence
+        for lexeme_with_agreement in agreed_lexeme_sequence:
+            # Get the lexeme and the properties of the word
+            lexeme, properties = lexeme_with_agreement
+            # See if it agrees with any rules (can be 0, 1, or more)
+            # A for loop is used here since it's possible that more than one rule applies
+            for rule in paradigms:
+                # If the pos of a rule isn't in the lexeme, we continue
+                if rule[0] not in properties:
+                    continue
+                # Otherwise, the rule applies
+                # We want to see the number of applicable inflections, since it should be equal to exactly 1
+                applicable_inflections = []
+                for rule_properties, inflection in rule[1].items():
+                    # If the property to agree with is a single string, then we check to see if it's the properties
+                    if ((type(rule_properties) == str and rule_properties in properties) or
+                            # Or if the type is a tuple, we check that every property in the lexeme is in the rule
+                            (type(rule_properties) == tuple and
+                             set(properties) & set(rule_properties) == set(rule_properties))):
+                        applicable_inflections.append(inflection)
+                # There should be exactly one key that works with the agreements of the lexeme
+                if len(applicable_inflections) != 1:
+                    raise Exception(f"Incorrect number of applicable inflections ({len(applicable_inflections)}) "
+                                    f"for {lexeme_with_agreement} "
+                                    f"given rule {rule}. \n"
+                                    f"Debug info: properties = {properties}, "
+                                    f"rule_properties = {rule_properties}, "
+                                    f"applicable_indlections = {applicable_inflections}")
+                # We apply the affix to the lexeme
+                affix = applicable_inflections[0]
+                # The affixed form depends on the position of the dash.
+                # For simple affixes, we just attach it where the dash it
+                lexeme = affix.replace("-", lexeme)
+            # Once we go through all the rules, we can add it to inflected words
+            # We add them with the properties in case we want to look at them
+            inflected_words.append([lexeme, properties])
+        # We now take the inflected words and turn them into the surface form
+        inflected_sentence = " ".join([word_and_properties[0] for word_and_properties in inflected_words])
+        # Add this to the inflected sentences
+        inflected_sentences.append(inflected_sentence)
+    # Return the inflected sentences
+    return inflected_sentences
+
+
 # Language class used to generate words according to a distribution
 class Language:
     # Constructor
@@ -197,6 +250,7 @@ class Language:
     def generate_sentences(self, num_sentences, required_words=None):
         # Prepare the sentences we want
         sentences = []
+        agreed_lexeme_sequences = []
         for _ in range(num_sentences):
             # GENERATE THE TERMINAL POS STATES AND PROPERTIES
             # We want the sentence to only contain terminal nodes, but we start with the start state
@@ -322,52 +376,17 @@ class Language:
                 # Now we have found all the new properties of the preagreement word!
                 # All that is left is to join the old and new properties, and add this word to our agreed word list
                 agreed_words.append([preagreement_word[0], preagreement_word[1] + new_properties])
+            agreed_lexeme_sequences.append(agreed_words)
 
             # MAKE EACH WORD HAVE INFLECTIONS
-            inflected_words = []
-            for lexeme_with_agreement in agreed_words:
-                # Get the lexeme and the properties of the word
-                lexeme, properties = lexeme_with_agreement
-                # See if it agrees with any rules (can be 0, 1, or more)
-                # A for loop is used here since it's possible that more than one rule applies
-                for rule in self.inflection_paradigms:
-                    # If the pos of a rule isn't in the lexeme, we continue
-                    if rule[0] not in properties:
-                        continue
-                    # Otherwise, the rule applies
-                    # We want to see the number of applicable inflections, since it should be equal to exactly 1
-                    applicable_inflections = []
-                    for rule_properties, inflection in rule[1].items():
-                        # If the property to agree with is a single string, then we check to see if it's the properties
-                        if ((type(rule_properties) == str and rule_properties in properties) or
-                                # Or if the type is a tuple, we check that every property in the lexeme is in the rule
-                                (type(rule_properties) == tuple and
-                                 set(properties) & set(rule_properties) == set(rule_properties))):
-                            applicable_inflections.append(inflection)
-                    # There should be exactly one key that works with the agreements of the lexeme
-                    if len(applicable_inflections) != 1:
-                        raise Exception(f"Incorrect number of applicable inflections ({len(applicable_inflections)}) "
-                                        f"for {lexeme_with_agreement} "
-                                        f"given rule {rule}. \n"
-                                        f"Debug info: properties = {properties}, "
-                                        f"rule_properties = {rule_properties}, "
-                                        f"applicable_indlections = {applicable_inflections}")
-                    # We apply the affix to the lexeme
-                    affix = applicable_inflections[0]
-                    # The affixed form depends on the position of the dash.
-                    # For simple affixes, we just attach it where the dash it
-                    lexeme = affix.replace("-", lexeme)
-                # Once we go through all the rules, we can add it to inflected words
-                # We add them with the properties in case we want to look at them
-                inflected_words.append([lexeme, properties])
+            # We get only the first element of the output since we are only making one sentence
+            inflected_words = inflect([agreed_words], self.inflection_paradigms)[0]
 
             # FINALLY, GIVE THE SURFACE FORM
-            # Words should be joined by a space
-            final_sentence = " ".join([word_and_properties[0] for word_and_properties in inflected_words])
             # We only add the final sentence, not the properties, but we keep them along until the end for debugging
-            sentences.append(final_sentence)
+            sentences.append(inflected_words)
         # Finally, we exit the loop and return the list of sentences
-        return sentences
+        return sentences, agreed_lexeme_sequences
 
     # Save the language in a given file
     def dump_language(self, directory_path):
