@@ -1,6 +1,137 @@
 import os
 import language
 
+# =====================================BASIC LANGUAGE TESTING, NON SUPPLETIVE ALLOMORPHY============+===================
+# Use the same language to make some ungrammatical conjugations
+# Temporary, probably will get rid of this soon
+def make_test_sentences_non_suppletive_allomorphy(train_sentences):
+    # Load the original json file
+    language_name = "non_suppletive_allomorphy"
+    mylang = language.load_language(os.path.join("Languages", language_name))
+
+    # Generate 1000 sentences from our four test distributions:
+    # 1. Correct grammar, same distribution of words
+    # 2. Incorrect grammar, same distribution of words
+    # 3. Correct grammar, different distribution of words
+    # 4. Incorrect grammar, different distribution of words
+    num_sentences = 1000
+
+    # 1. We start with the sentences from the same distribution
+    # Generate a test set with sentences never seen before
+    new_sentences = []
+    new_agreed_lexeme_sequences = []
+    while len(new_sentences) < num_sentences:
+        new_sentence, agreed_lexeme_sequence = mylang.generate_sentences(1)
+        # New sentence is a list containing just one element
+        if new_sentence[0] not in train_sentences:
+            new_sentences += new_sentence
+            new_agreed_lexeme_sequences += agreed_lexeme_sequence
+    print(new_sentences)
+    # Save them
+    language.save_sentences(sentences=new_sentences,
+                            filepath=os.path.join("Languages",
+                                                  language_name,
+                                                  f"test1_{num_sentences}_correct_same.txt"))
+
+    # 2. Now we take these agreed_lexeme_sequences and generate surface forms with our own rules
+    # Here are the new paradigms
+    incorrect_paradigms = [
+        ["verb", {
+            ("sg", "1st", "/C_"): "-me",
+            ("sg", "2nd", "/C_"): "-ju",
+            ("sg", "3rd", "/C_"): "-si",
+            ("pl", "1st", "/C_"): "-we",
+            ("pl", "2nd", "/C_"): "-jal",
+            ("pl", "3rd", "/C_"): "-dej",
+            ("sg", "1st", "/V_"): "-ame",
+            ("sg", "2nd", "/V_"): "-aju",
+            ("sg", "3rd", "/V_"): "-asi",
+            ("pl", "1st", "/V_"): "-awe",
+            ("pl", "2nd", "/V_"): "-ajal",
+            ("pl", "3rd", "/V_"): "-adej"
+        }],
+        ["noun", {
+            "sg": "-",
+            "pl": "-ol"
+        }]
+    ]
+    # Here we generate these sentences by simply inflecting the previous sequences with the correct paradigms
+    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
+    # Save them
+    language.save_sentences(sentences=new_sentences,
+                            filepath=os.path.join("Languages",
+                                                  language_name,
+                                                  f"test2_{num_sentences}_incorrect_same.txt"))
+
+    # 3. Generate some sentences with never seen before verbs
+    new_verbs_p1 = mylang.generate_words(5, "verb", "/C_")
+    new_verbs_p2 = mylang.generate_words(5, "verb", "/V_")
+    new_verb_lexemes = {"verb": [*new_verbs_p1, *new_verbs_p2]}
+    # This should never raise an error since generated words are guaranteed to be unique
+    assert len(set(new_verb_lexemes["verb"]) & mylang.word_set) == 0
+    # Generate these test sentences with the new verbs
+    new_sentences, new_agreed_lexeme_sequences = mylang.generate_sentences(num_sentences,
+                                                                           required_words=new_verb_lexemes)
+    # Save them
+    language.save_sentences(sentences=new_sentences,
+                            filepath=os.path.join("Languages",
+                                                  language_name,
+                                                  f"test3_{num_sentences}_correct_diff.txt"))
+
+    # 4. Generate some ungrammatical sentences with never seen before verbs
+    # Here we generate these sentences by simply inflecting the previous sequences with the incorrect paradigms
+    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
+    # Save them
+    language.save_sentences(sentences=new_sentences,
+                            filepath=os.path.join("Languages",
+                                                  language_name,
+                                                  f"test4_{num_sentences}_incorrect_diff.txt"))
+
+
+# Verbs conjugate regularly, but add an epenthetic vowel added based on whether the suffix causes CC
+def main_non_suppletive_allomorphy():
+    # Create/load a base language
+    mylang = create_language_base()
+
+    # Set the inflection paradigms
+    mylang.set_inflection_paradigms([
+        ["verb", {
+            ("sg", "1st", "/C_"): "-ame",
+            ("sg", "2nd", "/C_"): "-aju",
+            ("sg", "3rd", "/C_"): "-asi",
+            ("pl", "1st", "/C_"): "-awe",
+            ("pl", "2nd", "/C_"): "-ajal",
+            ("pl", "3rd", "/C_"): "-adej",
+            ("sg", "1st", "/V_"): "-me",
+            ("sg", "2nd", "/V_"): "-ju",
+            ("sg", "3rd", "/V_"): "-si",
+            ("pl", "1st", "/V_"): "-we",
+            ("pl", "2nd", "/V_"): "-jal",
+            ("pl", "3rd", "/V_"): "-dej"
+        }],
+        ["noun", {
+            "sg": "-",
+            "pl": "-ol"
+        }]
+    ])
+
+    # Generate 100 nouns specific to this language
+    for amount, noun_property in [(1, "1st"), (1, "2nd"), (30, "3rd"), (1, "2nd"), (600, "3rd")]:
+        mylang.generate_words(num_words=amount, part_of_speech="noun", paradigm=noun_property)
+    # Generate 350 words from each paradigm with approximately equal probability
+    for _ in range(750):
+        mylang.generate_words(num_words=1, part_of_speech="verb", paradigm="p0")
+
+    # Save the language
+    mylang.dump_language("Languages/non_suppletive_allomorphy")
+
+    # Generate some training sentences and save them
+    sentences = generate_and_save_sentences(mylang, "non_suppletive_allomorphy", 150000, "train")
+    print(f'There are {len(set(sentences))} unique sentences.')
+
+    # Return the training sentences
+    return sentences
+
 
 # =====================================BASIC LANGUAGE TESTING, REGULAR PARADIGMS=================+======================
 # Use the same language to make some ungrammatical conjugations
@@ -23,7 +154,8 @@ def make_test_sentences_basic(train_sentences):
     new_agreed_lexeme_sequences = []
     while len(new_sentences) < num_sentences:
         new_sentence, agreed_lexeme_sequence = mylang.generate_sentences(1)
-        if new_sentence not in train_sentences:
+        # New sentence is a list containing just one element
+        if new_sentence[0] not in train_sentences:
             new_sentences += new_sentence
             new_agreed_lexeme_sequences += agreed_lexeme_sequence
     print(new_sentences)
@@ -50,7 +182,7 @@ def make_test_sentences_basic(train_sentences):
         }]
     ]
     # Here we generate these sentences by simply inflecting the previous sequences with the correct paradigms
-    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms)
+    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
     # Save them
     language.save_sentences(sentences=new_sentences,
                             filepath=os.path.join("Languages",
@@ -72,12 +204,12 @@ def make_test_sentences_basic(train_sentences):
 
     # 4. Generate some ungrammatical sentences with never seen before verbs
     # Here we generate these sentences by simply inflecting the previous sequences with the incorrect paradigms
-    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms)
+    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
     # Save them
     language.save_sentences(sentences=new_sentences,
                             filepath=os.path.join("Languages",
                                                   language_name,
-                                                  f"test3_{num_sentences}_incorrect_diff.txt"))
+                                                  f"test4_{num_sentences}_incorrect_diff.txt"))
 
 
 # Main method run
@@ -120,7 +252,7 @@ def main_basic():
 
 # =====================================BASIC LANGUAGE TESTING, VERB CLASSES======================+======================
 # Use the same language to make some ungrammatical conjugations
-def main_test_sentences_classes(train_sentences):
+def make_test_sentences_classes(train_sentences):
     # Load the original json file
     language_name = "simple_paradigms"
     mylang = language.load_language(os.path.join("Languages", language_name))
@@ -138,11 +270,10 @@ def main_test_sentences_classes(train_sentences):
     new_agreed_lexeme_sequences = []
     while len(new_sentences) < num_sentences:
         new_sentence, agreed_lexeme_sequence = mylang.generate_sentences(1)
-        if new_sentence not in train_sentences:
+        # New sentence is a list containing just one element
+        if new_sentence[0] not in train_sentences:
             new_sentences += new_sentence
             new_agreed_lexeme_sequences += agreed_lexeme_sequence
-        else:
-            print(new_sentence, "in training sentences")  # TODO make sure this works
     print(new_sentences)
     # Save them
     language.save_sentences(sentences=new_sentences,
@@ -174,7 +305,7 @@ def main_test_sentences_classes(train_sentences):
         }]
     ]
     # Here we generate these sentences by simply inflecting the previous sequences with the correct paradigms
-    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms)
+    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
     # Save them
     language.save_sentences(sentences=new_sentences,
                             filepath=os.path.join("Languages",
@@ -198,12 +329,12 @@ def main_test_sentences_classes(train_sentences):
 
     # 4. Generate some ungrammatical sentences with never seen before verbs
     # Here we generate these sentences by simply inflecting the previous sequences with the incorrect paradigms
-    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms)
+    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
     # Save them
     language.save_sentences(sentences=new_sentences,
                             filepath=os.path.join("Languages",
                                                   language_name,
-                                                  f"test3_{num_sentences}_incorrect_diff.txt"))
+                                                  f"test4_{num_sentences}_incorrect_diff.txt"))
 
 
 # Makes verbs according to two verb classes of near equal frequency
@@ -315,7 +446,10 @@ def create_language_base():
 
 if __name__ == "__main__":
     # Currently with sanity check settings
-    # train_sentences_basic = main_basic()
-    # make_test_sentences_basic(train_sentences_basic)
-    train_sentences_classes = main_verb_classes()
-    main_test_sentences_classes(train_sentences_classes)
+    train_sentences_basic = main_basic()
+    print(train_sentences_basic)
+    make_test_sentences_basic(train_sentences_basic)
+    # train_sentences_classes = main_verb_classes()
+    # make_test_sentences_classes(train_sentences_classes)
+    # train_sentences_non_suppletive_allomorphy = main_non_suppletive_allomorphy()
+    # make_test_sentences_non_suppletive_allomorphy(train_sentences_non_suppletive_allomorphy)

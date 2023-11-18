@@ -60,7 +60,7 @@ def load_language(directory_path):
 
 # Method used to inflect the agreed_lexeme_sequences according to some rules
 # agreed_lexeme_sequences is a list of agreed_lexeme_sequences, paradigms is formatted as Language.inflection_paradigms
-def inflect(agreed_lexeme_sequences, paradigms):
+def inflect(agreed_lexeme_sequences, paradigms, phonemes):
     # Make sure that a list of lists is passed in
     assert type(agreed_lexeme_sequences[0]) is list
     inflected_sentences = []
@@ -81,12 +81,55 @@ def inflect(agreed_lexeme_sequences, paradigms):
                 # We want to see the number of applicable inflections, since it should be equal to exactly 1
                 applicable_inflections = []
                 for rule_properties, inflection in rule[1].items():
-                    # If the property to agree with is a single string, then we check to see if it's the properties
-                    if ((type(rule_properties) == str and rule_properties in properties) or
-                            # Or if the type is a tuple, we check that every property in the lexeme is in the rule
-                            (type(rule_properties) == tuple and
-                             set(properties) & set(rule_properties) == set(rule_properties))):
-                        applicable_inflections.append(inflection)
+                    # We want to check that each property applies. If any don't we continue
+                    perfect_property_match = True
+                    # If the keys are tuples, then all properties must match
+                    # If they're not, then only the single property must match
+                    for rule_property in (rule_properties if type(rule_properties) == tuple else [rule_properties]):
+                        # If the rule property doesn't apply, then it's not a perfect match
+                        # This means we don't add the inflection to applicable inflections
+                        # If a rule property is allophonic, we handle is differently
+                        if rule_property[0] == "/":
+                            # Get the part after the slash
+                            environment = rule_property[1:]
+                            # Get the environment before and after the underscore
+                            left_environment, right_environment = environment.split("_")
+                            # If the inflection is "-suf", then we want to look at the phonemes to the left of the "-"
+                            # An example environment is "/C_"
+                            # If it's a suffix, we want to look at the sounds before the "-"
+                            if inflection[0] == "-":
+                                left_phonemes = lexeme[-len(left_environment):]
+                                # We want to make sure that every phoneme on the left matches the environment
+                                for i in range(len(left_phonemes) ):
+                                    if left_phonemes[i] not in phonemes[left_environment[i]]:
+                                        perfect_property_match = False
+                                        break
+                            # If it's a prefix, we want to look at the sounds after the "-"
+                            elif inflection[-1] == "-":
+                                right_phonemes = lexeme[:len(right_environment)]
+                                # Sanity check
+                                assert len(right_phonemes) == len(right_environment)
+                                # We want to make sure that every phoneme on the right matches the environment
+                                for i in range(len(right_phonemes) ):
+                                    if right_phonemes[i] not in phonemes[right_environment[i]]:
+                                        perfect_property_match = False
+                                        break
+                            else:
+                                raise Exception("Circumfixes are not yet handled.")
+                        # All other rule properties just require the property to exist in the lexeme's properties
+                        else:
+                            # This is the truth condition for non-allophonic properties to be true
+                            if rule_property not in properties:
+                                perfect_property_match = False
+                        # If it's not a perfect_property_match, we break the loop
+                        if not perfect_property_match:
+                            break
+                    # If it's not a perfect_property_match, we don't add this inflection to the applicable inflections
+                    # Instead, we continue the loop
+                    if not perfect_property_match:
+                        continue
+                    # If it's a perfect property match, we do indeed want to add it to the applicable inflections
+                    applicable_inflections.append(inflection)
                 # There should be exactly one key that works with the agreements of the lexeme
                 if len(applicable_inflections) != 1:
                     raise Exception(f"Incorrect number of applicable inflections ({len(applicable_inflections)}) "
@@ -380,7 +423,7 @@ class Language:
 
             # MAKE EACH WORD HAVE INFLECTIONS
             # We get only the first element of the output since we are only making one sentence
-            inflected_words = inflect([agreed_words], self.inflection_paradigms)[0]
+            inflected_words = inflect([agreed_words], self.inflection_paradigms, self.phonemes)[0]
 
             # FINALLY, GIVE THE SURFACE FORM
             # We only add the final sentence, not the properties, but we keep them along until the end for debugging
@@ -404,7 +447,7 @@ class Language:
                 "agreement_rules": self.agreement_rules,
                 "words": self.words,
                 # Word_set must first be converted to a list
-                "word_set": list(sorted(self.word_set) )
+                "word_set": list(sorted(self.word_set))
             }
             # Inflection paradigms has tuples as keys.
             # We want to replace each tuple with a string with dots separating the properties
