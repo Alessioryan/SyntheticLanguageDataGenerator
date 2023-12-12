@@ -80,6 +80,8 @@ def inflect(agreed_lexeme_sequences, paradigms, phonemes):
                 # Otherwise, the rule applies
                 # We want to see the number of applicable inflections, since it should be equal to exactly 1
                 applicable_inflections = []
+                # rule_properties is a collection (or single) property that must apply for the inflection to be used
+                # inflection is the inflection that will be applied (e.g. "-suf" or "pref-")
                 for rule_properties, inflection in rule[1].items():
                     # We want to check that each property applies. If any don't we continue
                     perfect_property_match = True
@@ -94,10 +96,14 @@ def inflect(agreed_lexeme_sequences, paradigms, phonemes):
                             environment = rule_property[1:]
                             # Get the environment before and after the underscore
                             left_environment, right_environment = environment.split("_")
+                            # We don't want circumfixes or environments that rely on right and left phonemes
+                            assert not (left_environment and right_environment)
+                            assert inflection[0] == "-" or inflection[-1] == "-"
                             # If the inflection is "-suf", then we want to look at the phonemes to the left of the "-"
                             # An example environment is "/C_"
-                            # If it's a suffix, we want to look at the sounds before the "-"
-                            if inflection[0] == "-":
+                            # If it's a suffix, it only has a left environment
+                            # We will want to look at the sounds before where the "-" would attach
+                            if left_environment:  # Suffix
                                 left_phonemes = lexeme[-len(left_environment):]
                                 # We want to make sure that every phoneme on the left matches the environment
                                 for i in range(len(left_phonemes) ):
@@ -105,7 +111,7 @@ def inflect(agreed_lexeme_sequences, paradigms, phonemes):
                                         perfect_property_match = False
                                         break
                             # If it's a prefix, we want to look at the sounds after the "-"
-                            elif inflection[-1] == "-":
+                            elif right_environment:  # Prefix
                                 right_phonemes = lexeme[:len(right_environment)]
                                 # Sanity check
                                 assert len(right_phonemes) == len(right_environment)
