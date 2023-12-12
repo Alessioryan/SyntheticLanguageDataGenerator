@@ -18,7 +18,7 @@ def save_sentences(sentences, filepath):
 def choose_state(rule, is_generation):
     choices = []
     probabilities = []
-    # If it's generation, use the format "A": [["B", "C", "..."], x, ["D"], y, ...]
+    # If it's generation, use the format "A": [["B", "C*p", "..."], x, ["D"], y, ...]
     # If it's not generation it's unconditioned, use the format "A": ["a", "p1", x, "p2", y, ...]
     # Either way we alternate between the choices and the probabilities, the only difference is that unconditioned
     #   starts with the state of the output
@@ -195,9 +195,10 @@ class Language:
             self.words[part_of_speech] = []
 
     # Set sentence generation rules according to CFGs
-    # The format of a rule is "A": [["B", "C", "..."], x, ["D"], y, ...]
+    # The format of a rule is "A": [["B", "C*p", "..."], x, ["D"], y, ...]
     #   A is the input state
     #   B, C, ... are the outputs states
+    #       C*p means that the property p will be removed from C
     #   x is the probability of the rule taking place
     #   D is another output state that takes place with probability y
     # An example is "S": [["sN", "VP"], 1]
@@ -312,6 +313,14 @@ class Language:
                 for state in sentence.strip().split(" "):
                     # Split this state from any properties it has
                     raw_state, existing_properties = state.split("-")
+                    # Separate the existing properties into a list
+                    # The separated_existing_properties list will contain multiple elements if there is a "." in there
+                    # If there are no existing properties, then return an empty list
+                    separated_existing_properties = existing_properties.split(".")
+                    # We don't want a zero string property, so if the only element in the list is a zero string,
+                    #   then we make separated_existing_properties an empty list
+                    if separated_existing_properties == [""]:
+                        separated_existing_properties = []
                     # If the raw states is a terminal part of speech, continue the loop
                     if raw_state in self.words.keys():
                         # We want to add the whole state
@@ -320,21 +329,42 @@ class Language:
                     # If it's a generation rule, then we add words individually to the temp_sentence
                     if raw_state in self.generation_rules:
                         # Choose the next state(s) for this state
+                        # There will never be a new_property from a generation_rule
                         next_states, new_property = choose_state(rule=self.generation_rules[raw_state],
                                                                  is_generation=True)
+                        # For each next state, add the new property, but remove the property after *
+                        for next_state in next_states:
+                            # See if there is something to remove, if there isn't then there are no unwanted properties
+                            # If this throws an error, it means that there was more than 1 "*" in the next_state
+                            # If there is one unwanted property, then we split it on the asterisk
+                            if "*" in next_state:
+                                true_next_state, unwanted_property = next_state.split("*")
+                            # If there are no wanted properties, the next_state is the true_next_state
+                            else:
+                                true_next_state, unwanted_property = next_state, "__NO_UNWANTED__"
+                            # The output of this is
+                            # Remove the property_to_be_removed for this next_state only, if applicable
+                            updated_existing_properties = deepcopy(separated_existing_properties)
+                            # If (1) the unwanted_property exists and (2) is in the existing_property, then we remove it
+                            if unwanted_property in updated_existing_properties:
+                                updated_existing_properties.remove(unwanted_property)
+                            # Add this next state, potentially without the unwanted_property, to the temp_sentence
+                            temp_sentence += (f'{true_next_state}-'
+                                              f'{".".join(updated_existing_properties)} ')
                     # If it's an unconditioned rule, we see if we want to add any properties
                     elif raw_state in self.unconditioned_rules:
                         # Choose the property for this state
+                        # There will only ever be one new next_state, but it will be wrapped in a list
                         new_property, next_states = choose_state(rule=self.unconditioned_rules[raw_state],
                                                                  is_generation=False)
+                        # Add the new property to the existing properties
+                        separated_existing_properties.append(new_property)
+                        # Add the new next_state with the new property to the temp_sentence
+                        temp_sentence += (f'{next_states[0]}-'
+                                          f'{".".join(separated_existing_properties)} ')
                     # Sanity check: if we enter this loop, the state should be in either generation or unconditioned
                     else:
                         raise Exception(f"Invalid state for input {state}. Check code.")
-                    # For each next state, add the new property
-                    for next_state in next_states:
-                        temp_sentence += (f'{next_state}-'
-                                          f'{existing_properties + "." if existing_properties else ""}'
-                                          f'{new_property if new_property else ""} ')
                 # Update the value of sentence
                 sentence = temp_sentence
 

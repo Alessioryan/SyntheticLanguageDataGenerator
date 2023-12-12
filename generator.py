@@ -417,7 +417,7 @@ def create_language_base():
     mylang.set_syllable_lambda(0.8)
 
     # Set the parts of speech of the language
-    parts_of_speech = ["noun", "verb", "adj"]
+    parts_of_speech = ["noun", "verb", "adj", "prep"]
     mylang.set_parts_of_speech(parts_of_speech=parts_of_speech)
 
     # Set the generation rules
@@ -425,8 +425,10 @@ def create_language_base():
     mylang.set_generation_rules({
         "S": [["sNP", "VP"], 1],  # Sentences generate subject NPs and VPs
         "VP": [["verb", "NP"], 0.7, ["verb"], 0.3],  # VPs generate verbs (and object NPs)
-        "NP": [["adj", "NoAdjNP"], 0.35, ["NoAdjNP"], 0.65],  # NPs may take adjectives before the rest
-        "NoAdjNP": [["N"], 1]  # NoAdjNPs become nouns, or nouns with a PP
+        "NP": [["det", "NOM"], 1],  # All NPs require a determiner
+        "NOM": [["adj", "NoAdjNOM"], 0.35, ["NoAdjNOM"], 0.65],  # NPs may take adjectives before the rest
+        "NoAdjNP": [["N", "PP*nom"], 0.2, ["N"], 0.8],  # NoAdjNPs become nouns, or nouns with a PP
+        "PP": [["prep", "N"], 1],  # PPs always become prepositions followed by NPs
     })
 
     # Set independent probabilistic rules, e.g. pluralization, past tense
@@ -440,6 +442,10 @@ def create_language_base():
         "verb": [["nom", "noun"], [["sg", "pl"], ["1st", "2nd", "3rd"]]]
     })
 
+    # Generate 2 determiners
+    mylang.generate_words(num_words=2, part_of_speech="det", paradigm='main')
+    # Generate 10 prepositions
+    mylang.generate_words(num_words=10, part_of_speech="prep", paradigm='uninflected')
     # Generate 200 adjectives
     mylang.generate_words(num_words=200, part_of_speech="adj", paradigm='uninflected')
 
@@ -450,11 +456,11 @@ def create_language_base():
 if __name__ == "__main__":
     # Currently with sanity check settings
     # basic creates one regular paradigm
-    ## train_sentences_basic = main_basic()
-    ## make_test_sentences_basic(train_sentences_basic)
+    train_sentences_basic = main_basic()
+    make_test_sentences_basic(train_sentences_basic)
     # verb_classes creates two regular paradigms, where the class of the verb is not predictable
     ## train_sentences_classes = main_verb_classes()
     ## make_test_sentences_classes(train_sentences_classes)
     # non_suppletive_allomorphy creates one regular paradigm with regular CV allomorphy
-    train_sentences_non_suppletive_allomorphy = main_non_suppletive_allomorphy()
-    make_test_sentences_non_suppletive_allomorphy(train_sentences_non_suppletive_allomorphy)
+    ## train_sentences_non_suppletive_allomorphy = main_non_suppletive_allomorphy()
+    ## make_test_sentences_non_suppletive_allomorphy(train_sentences_non_suppletive_allomorphy)
