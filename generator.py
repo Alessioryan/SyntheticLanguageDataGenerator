@@ -9,12 +9,12 @@ def make_test_sentences_non_suppletive_allomorphy(train_sentences, language_name
     # Load the original json file
     mylang = language.load_language(os.path.join("Languages", language_name))
 
-    # Generate 1000 sentences from our four test distributions:
+    # Generate 5000 sentences from our four test distributions:
     # 1. Correct grammar, same distribution of words
     # 2. Incorrect grammar, same distribution of words
     # 3. Correct grammar, different distribution of words
     # 4. Incorrect grammar, different distribution of words
-    num_sentences = 1000
+    num_sentences = 5000
 
     # 1. We start with the sentences from the same distribution
     # Generate a test set with sentences never seen before
@@ -116,7 +116,7 @@ def main_non_suppletive_allomorphy(language_name="non_suppletive_allomorphy"):
     ])
 
     # Generate 100 nouns specific to this language
-    for amount, noun_property in [(1, "1st"), (1, "2nd"), (30, "3rd"), (1, "2nd"), (600, "3rd")]:
+    for amount, noun_property in [(600, "3rd")]:
         mylang.generate_words(num_words=amount, part_of_speech="noun", paradigm=noun_property)
     # Generate 350 words from each paradigm with approximately equal probability
     for _ in range(750):
@@ -140,12 +140,12 @@ def make_test_sentences_basic(train_sentences, language_name="one_regular_paradi
     # Load the original json file
     mylang = language.load_language(os.path.join("Languages", language_name))
 
-    # Generate 1000 sentences from our four test distributions:
+    # Generate 5000 sentences from our four test distributions:
     # 1. Correct grammar, same distribution of words
     # 2. Incorrect grammar, same distribution of words
     # 3. Correct grammar, different distribution of words
     # 4. Incorrect grammar, different distribution of words
-    num_sentences = 1000
+    num_sentences = 5000
 
     # 1. We start with the sentences from the same distribution
     # Generate a test set with sentences never seen before
@@ -233,7 +233,7 @@ def main_basic(language_name="one_regular_paradigm"):
     ])
 
     # Generate 100 nouns specific to this language
-    for amount, noun_property in [(1, "1st"), (1, "2nd"), (30, "3rd"), (1, "2nd"), (600, "3rd")]:
+    for amount, noun_property in [(600, "3rd")]:
         mylang.generate_words(num_words=amount, part_of_speech="noun", paradigm=noun_property)
     mylang.generate_words(num_words=700, part_of_speech="verb", paradigm="verb1")
 
@@ -254,12 +254,12 @@ def make_test_sentences_classes(train_sentences, language_name="two_regular_clas
     # Load the original json file
     mylang = language.load_language(os.path.join("Languages", language_name))
 
-    # Generate 1000 sentences from our four test distributions:
+    # Generate 5000 sentences from our four test distributions:
     # 1. Correct grammar, same distribution of words
     # 2. Incorrect grammar, same distribution of words
     # 3. Correct grammar, different distribution of words
     # 4. Incorrect grammar, different distribution of words
-    num_sentences = 1000
+    num_sentences = 5000
 
     # 1. We start with the sentences from the same distribution
     # Generate a test set with sentences never seen before
@@ -362,7 +362,7 @@ def main_verb_classes(language_name="two_regular_classes"):
     ])
 
     # Generate 100 nouns specific to this language
-    for amount, noun_property in [(1, "1st"), (1, "2nd"), (30, "3rd"), (1, "2nd"), (600, "3rd")]:
+    for amount, noun_property in [(600, "3rd")]:
         mylang.generate_words(num_words=amount, part_of_speech="noun", paradigm=noun_property)
     # Generate 350 words from each paradigm with approximately equal probability
     for _ in range(350):
@@ -425,27 +425,36 @@ def create_language_base():
     mylang.set_generation_rules({
         "S": [["sNP", "VP"], 1],  # Sentences generate subject NPs and VPs
         "VP": [["verb", "UnmarkedNP"], 0.7, ["verb"], 0.3],  # VPs generate verbs (and object NPs)
-        "NP": [["det", "NOM"], 1],  # All NPs require a determiner
-        "NOM": [["adj", "NoAdjNOM"], 0.35, ["NoAdjNOM"], 0.65],  # NPs may take adjectives before the rest
+        "NP": [["det*nouny", "NOM"], 0.6, ["PRON"], 0.4],  # NPs can be a det NOM or a PRON
+        "NOM": [["adj*nouny", "NOM"], 0.35, ["NoAdjNOM"], 0.65],  # NPs may take adjectives before the rest, recursive
         "NoAdjNOM": [["N", "PP*nom.__hash__"], 0.2, ["N"], 0.8],  # NoAdjNPs become nouns, or nouns with a PP
-        "PP": [["prep", "N"], 1],  # PPs always become prepositions followed by NPs
+        "PP": [["prep*nouny", "UnmarkedNP"], 1],  # PPs always become prepositions followed by NPs
+        "PRON": [["sgPRON"], 0.8, ["plPRON"], 0.2],  # Pronouns are singular or plural with the same probabilities as Ns
+        "sgPRON": [["1stsgpron"], 0.45, ["2ndsgpron"], 0.2, ["3rdsgpron"], 0.25],  # Pronouns have number
+        "plPRON": [["1stplpron"], 0.45, ["2ndplpron"], 0.2, ["3rdplpron"], 0.25],  # Pronouns have number
     })
 
     # Set independent probabilistic rules, e.g. pluralization, past tense
     mylang.set_unconditioned_rules({
         "sNP": [["UnmarkedNP"], "nom", 1],  # Subject NPs take the nominative
-        "UnmarkedNP": [["NP"], "__hash__", 1],  # We want to make sure that words in the same NP can agree
-        "N": [["noun"], "sg", 0.8, "pl", 0.2]  # Nouns may be singular or plural
+        "UnmarkedNP": [["NP"], "__hash__.nouny", 1],  # We want to make sure that words in the same NP can agree
+        "N": [["noun"], "sg", 0.8, "pl", 0.2],  # Nouns may be singular or plural
     })
 
     # Set the agreement rules
     mylang.set_agreement_rules({
-        "verb": [["nom", "noun"], [["sg", "pl"], ["1st", "2nd", "3rd"]]],  # Verbs agree with nominative nouns
-        "det": [["noun", "__hash__"], [["sg", "pl"], ["1st", "2nd", "3rd"]]]  # Determiners agree with their head nouns
+        "verb": [["nom", "nouny"], [["sg", "pl"], ["1st", "2nd", "3rd"]]],  # Verbs agree with nominative nouns
+        "det": [["noun", "__hash__"], [["sg", "pl"]]]  # Determiners agree with their head nouns
     })
 
     # Generate 1 determiner. Different forms will come from inflections
     mylang.add_word(surface_form="", part_of_speech="det", paradigm="main_det")
+    # Generate 6 pronouns, each with a different agreement
+    for pers in ["1st", "2nd", "3rd"]:
+        for num in ["sg", "pl"]:
+            pronoun_pers_num = f"{pers}{num}pron"
+            mylang.set_parts_of_speech([pronoun_pers_num])
+            mylang.generate_words(num_words=1, part_of_speech=pronoun_pers_num, paradigm=f'pron.{pers}.{num}')
     # Generate 10 prepositions
     mylang.generate_words(num_words=10, part_of_speech="prep", paradigm='uninflected')
     # Generate 200 adjectives
@@ -454,12 +463,8 @@ def create_language_base():
     # Set an inflection paradigm for determiners
     mylang.set_inflection_paradigms([
         ["det", {
-            ("sg", "1st"): "-",
-            ("sg", "2nd"): "-",
-            ("sg", "3rd"): "-da",
-            ("pl", "1st"): "-",
-            ("pl", "2nd"): "-",
-            ("pl", "3rd"): "-di"
+            "sg": "-duh",
+            "pl": "-di",
         }],
     ])
 

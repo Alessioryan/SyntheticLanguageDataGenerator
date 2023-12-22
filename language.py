@@ -191,6 +191,8 @@ class Language:
     # Set part of speech
     # Not encoded in a separate variable
     def set_parts_of_speech(self, parts_of_speech):
+        # The parts of speech passed in must be in the form of a list
+        assert type(parts_of_speech) is list
         # For each part of speech, define the words belonging to that part of speech as an empty list
         for part_of_speech in parts_of_speech:
             self.words[part_of_speech] = []
@@ -369,16 +371,22 @@ class Language:
                     elif raw_state in self.unconditioned_rules:
                         # Choose the property for this state
                         # There will only ever be one new next_state, but it will be wrapped in a list
-                        new_property, next_states = choose_state(rule=self.unconditioned_rules[raw_state],
-                                                                 is_generation=False)
-                        # If the new_property is "__hash__", we want to add a hash value as the new property
-                        if new_property == "__hash__":
-                            # We create a pseudorandom number and assign it to the next state of this object
-                            # Remove the "0." though since that would mess everything up
-                            # Some values will have "-" in the form of e- something, we want to remove that too
-                            new_property += f":{str(random.random())[2:].replace('-', '')}"
-                        # Add the new property to the existing properties
-                        separated_existing_properties.append(new_property)
+                        # There may be more than one new property though. These are period separated
+                        new_properties, next_states = choose_state(rule=self.unconditioned_rules[raw_state],
+                                                                   is_generation=False)
+                        for new_property in new_properties.split("."):
+                            # If the new_property is "__hash__", we want to add a hash value as the new property
+                            if new_property == "__hash__":
+                                # We create a pseudorandom number and assign it to the next state of this object
+                                # Remove the "0." though since that would mess everything up
+                                # Some values will have "-" in the form of e- something, we want to remove that too
+                                separated_existing_properties.append(
+                                    f"__hash__:{str(random.random())[2:].replace('-', '')}"
+                                )
+                            # If the new property is not hash, then we just add it to the list of existing properties
+                            else:
+                                # Add the new property to the existing properties
+                                separated_existing_properties.append(new_property)
                         # Add the new next_state with the new property to the temp_sentence
                         temp_sentence += (f'{next_states[0]}-'
                                           f'{".".join(separated_existing_properties)} ')
@@ -431,6 +439,7 @@ class Language:
             # Now we iterate over every word to see if it must agree with any other words
             # All the preagreement lexemes are stored as [word, properties]
             agreed_words = []
+            # print(preagreement_lexemes)
             for preagreement_word in preagreement_lexemes:
                 # Check to see if there's a rule describing this word.
                 # If there isn't, our work is done, so we add it to agreed_words and continue
