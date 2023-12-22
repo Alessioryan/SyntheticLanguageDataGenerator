@@ -191,6 +191,7 @@ class Language:
     # Set part of speech
     # Not encoded in a separate variable
     def set_parts_of_speech(self, parts_of_speech):
+        # For each part of speech, define the words belonging to that part of speech as an empty list
         for part_of_speech in parts_of_speech:
             self.words[part_of_speech] = []
 
@@ -229,8 +230,8 @@ class Language:
     #       The word that satisfies the agreement properties must have exactly one of the features in q
     #       Otherwise, an error is raised
     #   ["r1", ...], ... are other sets of properties that determine other features
-    # An example is "verb": [["nom"], [["sg", "pl"], ["1st", "2nd", "3rd"]]]
-    #   This means that verbs must agree with a word that has the property nominative
+    # An example is "verb": [["nom", "noun"], [["sg", "pl"], ["1st", "2nd", "3rd"]]]
+    #   This means that verbs must agree with a word that has the property nominative and noun
     #   Then, the verb agrees with that word, taking either the property singular or plural, and 1st, 2nd, or 3rd
     # The agreement rules don't dictate the inflections, just what words agree with what
     # FOR NOW, WORDS CAN ONLY AGREE WITH ONE OTHER WORD. POTENTIALLY CHANGE THIS LATER.
@@ -257,6 +258,13 @@ class Language:
     def set_inflection_paradigms(self, inflection_paradigms):
         # The inflection_paradigm is a dictionary. All inflections are suffixes
         self.inflection_paradigms.extend(inflection_paradigms)
+
+    # Add words to our lexicon at the end of the list for that part of speech, but control for the surface form
+    def add_word(self, surface_form, part_of_speech, paradigm):
+        # Add the word to the language's word
+        self.words[part_of_speech].append((surface_form, paradigm))
+        # Add the word to the language's word_set
+        self.word_set.add(surface_form)
 
     # Add words to our lexicon at the end of the list for that part of speech
     # Words can be individual words or tuples consisting of (word, paradigm_number)
@@ -338,16 +346,22 @@ class Language:
                             # If this throws an error, it means that there was more than 1 "*" in the next_state
                             # If there is one unwanted property, then we split it on the asterisk
                             if "*" in next_state:
-                                true_next_state, unwanted_property = next_state.split("*")
+                                true_next_state, unwanted_properties = next_state.split("*")
                             # If there are no wanted properties, the next_state is the true_next_state
                             else:
-                                true_next_state, unwanted_property = next_state, "__NO_UNWANTED__"
-                            # The output of this is
+                                true_next_state, unwanted_properties = next_state, "__no_unwanted__"
                             # Remove the property_to_be_removed for this next_state only, if applicable
                             updated_existing_properties = deepcopy(separated_existing_properties)
-                            # If (1) the unwanted_property exists and (2) is in the existing_property, then we remove it
-                            if unwanted_property in updated_existing_properties:
-                                updated_existing_properties.remove(unwanted_property)
+                            # For every unwanted property
+                            for unwanted_property in unwanted_properties.split("."):
+                                # If the unwanted_property is in the existing_property, then we kick it
+                                if unwanted_property in updated_existing_properties:
+                                    updated_existing_properties.remove(unwanted_property)
+                                # If the unwanted property is a HASH, remove the whole hash value
+                                if unwanted_property == "__hash__":
+                                    updated_existing_properties = [
+                                        prop for prop in updated_existing_properties if "__hash__" not in prop
+                                    ]
                             # Add this next state, potentially without the unwanted_property, to the temp_sentence
                             temp_sentence += (f'{true_next_state}-'
                                               f'{".".join(updated_existing_properties)} ')
@@ -357,6 +371,12 @@ class Language:
                         # There will only ever be one new next_state, but it will be wrapped in a list
                         new_property, next_states = choose_state(rule=self.unconditioned_rules[raw_state],
                                                                  is_generation=False)
+                        # If the new_property is "__hash__", we want to add a hash value as the new property
+                        if new_property == "__hash__":
+                            # We create a pseudorandom number and assign it to the next state of this object
+                            # Remove the "0." though since that would mess everything up
+                            # Some values will have "-" in the form of e- something, we want to remove that too
+                            new_property += f":{str(random.random())[2:].replace('-', '')}"
                         # Add the new property to the existing properties
                         separated_existing_properties.append(new_property)
                         # Add the new next_state with the new property to the temp_sentence
@@ -409,10 +429,11 @@ class Language:
 
             # ADD AGREEMENT PROPERTIES, NOT YET INFLECTING
             # Now we iterate over every word to see if it must agree with any other words
+            # All the preagreement lexemes are stored as [word, properties]
             agreed_words = []
             for preagreement_word in preagreement_lexemes:
                 # Check to see if there's a rule describing this word.
-                # If there isn't, out work is done, so we add it to agreed_words and continue
+                # If there isn't, our work is done, so we add it to agreed_words and continue
                 # If none of the properties of a word are in the agreement rules
                 agreement_properties = list(set(preagreement_word[1]) & set(self.agreement_rules))
                 if len(agreement_properties) == 0:
@@ -427,9 +448,49 @@ class Language:
                 words_triggering_agreement = []
                 for other_word in preagreement_lexemes:
                     # Make sure it has all the right properties
-                    if required_properties & set(other_word[1]) == required_properties:
-                        # If it does have all the right properties, add it to the list of words triggering agreement
-                        words_triggering_agreement.append(other_word)
+                    # We do this by making sure that every required property is in other word's properties
+                    # For __hash__, we have to make sure that the hashes are the same for the agreement
+                    # E.g. det.:123 must agree with noun.:123.sg, but the way that's phrase is:
+                    #   "det": [["noun", "__hash__"], ["sg", "pl"]]
+                    # This is problematic since the noun isn't marked with "__hash__" as a property
+                    # What we need to do is:
+                    # for each property in the other word's properties
+                    #   if it's a hash property
+                    #       # Make sure the hashes are the same
+                    #   otherwise, check to see if it's in the required properties
+                    #   if the property (hash or otherwise) is not found, then we continue. This word doesn't agree
+                    #   otherwise, we add it to the words triggering agreement. There ultimately should only be one
+                    # We first start by assuming that the word has all the required properties
+                    all_required_properties_met = True
+                    # We iterate over all the properties in the rule to ensure they are in the other word:
+                    for required_property in required_properties:
+                        # If it's a hash property, we handle it differently
+                        if required_property == "__hash__":
+                            # We want to make sure that the hash values are the same
+                            # Firstly, find all the hash-like properties in this word and the other word
+                            this_word_hash = [prop for prop in preagreement_word[1] if ":" in prop]
+                            other_word_hash = [prop for prop in other_word[1] if ":" in prop]
+                            # Every hash in this word must also be in the other word
+                            # The reason this is the same (and not they need to full overlap) is as follows:
+                            # - This word and other word come from the same state
+                            # - Other word is the head, and may take on other hashes
+                            # - This word won't take on other hashes (e.g. NP --> det NOM)
+                            # Therefore, we just need to make sure that the overlap is the same as this word's
+                            if set(this_word_hash) & set(other_word_hash) != set(this_word_hash):
+                                all_required_properties_met = False
+                        # If it's a normal property, we just want to make sure it's in the other word's property list
+                        else:
+                            # If the required properties are missing, then we set all_required_properties_met to false
+                            if required_property not in other_word[1]:
+                                all_required_properties_met = False
+                        # If any property is not found, this isn't the word for us
+                        if not all_required_properties_met:
+                            break
+                    # If any property is not found, this isn't the word for us:
+                    if not all_required_properties_met:
+                        continue
+                    # If it does have all the right properties, add it to the list of words triggering agreement
+                    words_triggering_agreement.append(other_word)
                 # Now we make sure there's EXACTLY ONE word triggering agreement
                 if len(words_triggering_agreement) != 1:
                     raise Exception(f"{len(words_triggering_agreement)} words triggered agreement for "
