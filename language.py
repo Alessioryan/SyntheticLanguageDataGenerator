@@ -2,8 +2,9 @@ import json
 import os
 import numpy.random as nprand
 import random
-from collections import defaultdict
 from copy import deepcopy
+
+from tqdm import tqdm
 
 
 # Method used to save sentences to a txt file
@@ -11,7 +12,8 @@ def save_sentences(sentences, filepath):
     # Open the file write only
     with open(filepath, "w") as file:
         # We want each string to be ended with a period and followed by a new line
-        file.write(".\n".join(sentences))
+        # We also want the last sentence to have a period though
+        file.write(".\n".join(sentences) + ".")
 
 
 # Helper method used for probabilistic CFGs
@@ -273,7 +275,8 @@ class Language:
     # Paradigm is a mandatory string parameter which defines the words as being part of that paradigm
     # Returns a list containing the new words
     # If you want to include more than one property in the paradigm, separate them with periods
-    def generate_words(self, num_words, part_of_speech, paradigm):
+    # New words are guaranteed to be not in wordset
+    def generate_words(self, num_words, part_of_speech, paradigm, add_to_lexicon=True):
         # Generate words with each phoneme in a given class appearing with the same frequency
         # All syllable types appear with equal frequency too
         # We use a while loop since we don't want duplicate words (for now!)
@@ -292,9 +295,12 @@ class Language:
             # If we generated a new word, we add it to our lexicon and to the words we made
             if word not in self.word_set:
                 new_words.append((word, paradigm))
-                self.word_set.add(word)
-        # Add the new_words to the part of speech they were made for
-        self.words[part_of_speech] += new_words
+                # We only add a new word to this language if add_to_lexicon is True
+                if add_to_lexicon:
+                    self.word_set.add(word)
+        # Add the new_words to the part of speech they were made for, if add_to_lexicon is True
+        if add_to_lexicon:
+            self.words[part_of_speech] += new_words
         # Now return the list in case it's needed
         return new_words
 
@@ -307,11 +313,12 @@ class Language:
     #   be drawn with Zipf's distribution as normal. This may mean that if a sentence is generated with no terminal
     #   pos in required words, then there won't be any words from required words in the sentence, and that if a
     #   sentence has more than one terminal pos in required words, all of those will be drawn from required words.
+    #   All words drawn from required_words are drawn randomly
     def generate_sentences(self, num_sentences, required_words=None):
         # Prepare the sentences we want
         sentences = []
         agreed_lexeme_sequences = []
-        for _ in range(num_sentences):
+        for _ in tqdm(range(num_sentences) ):
             # GENERATE THE TERMINAL POS STATES AND PROPERTIES
             # We want the sentence to only contain terminal nodes, but we start with the start state
             sentence = "S-"
