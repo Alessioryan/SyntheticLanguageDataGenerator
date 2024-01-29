@@ -22,4 +22,4 @@ module load anaconda
 module load transformers
 
 # Your programs to run.
-python3
+python3 main_hyak.py
