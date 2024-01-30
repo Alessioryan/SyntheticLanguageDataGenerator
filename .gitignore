@@ -2,4 +2,4 @@
 /Languages/*/train/*
 
 # Nothing in the languages within SyntheticallyTrainedLLM_Hyak
-SyntheticallyTrainedLLM_Hyak/one_regular_paradigm/*
+SyntheticallyTrainedLLM_Hyak/*
