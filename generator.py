@@ -10,93 +10,16 @@ import language
 
 
 # =====================================BASIC LANGUAGE TESTING, NON SUPPLETIVE ALLOMORPHY============+===================
-# Use the same language to make some ungrammatical conjugations
-# Temporary, probably will get rid of this soon
-def make_test_sentences_non_suppletive_allomorphy(train_sentences, language_name="non_suppletive_allomorphy"):
-    # Load the original json file
-    mylang = language.load_language(os.path.join("Languages", language_name))
+# Makes verbs where the endings rely on two phonological classes of the verbs
+# In this case, it's verbs whose roots end in consonants and those whose roots end in vowels
+# Consonant-ending roots add an "a" between the root's final consonant and the ending that follows
+def non_suppletive_allomorphy(language_name="non_suppletive_allomorphy", num_train=1e6, num_test=5000):
+    # Make num_train and num_test integers
+    num_train = int(num_train)
+    num_test = int(num_test)
+    # num_train should be a power of 10 and that it's at least 10 sentences
+    assert math.log10(num_train) % 1 == 0 and num_train >= 10
 
-    # Generate 5000 sentences from our four test distributions:
-    # 1. Correct grammar, same distribution of words
-    # 2. Incorrect grammar, same distribution of words
-    # 3. Correct grammar, different distribution of words
-    # 4. Incorrect grammar, different distribution of words
-    num_sentences = 5000
-
-    # 1. We start with the sentences from the same distribution
-    # Generate a test set with sentences never seen before
-    new_sentences = []
-    new_agreed_lexeme_sequences = []
-    while len(new_sentences) < num_sentences:
-        new_sentence, agreed_lexeme_sequence = mylang.generate_sentences(1)
-        # New sentence is a list containing just one element
-        if new_sentence[0] not in train_sentences:
-            new_sentences += new_sentence
-            new_agreed_lexeme_sequences += agreed_lexeme_sequence
-    print(new_sentences)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test1_{num_sentences}_correct_same.txt"))
-
-    # 2. Now we take these agreed_lexeme_sequences and generate surface forms with our own rules
-    # Here are the new paradigms
-    incorrect_paradigms = [
-        ["verb", {
-            ("sg", "1st", "/C_"): "-me",
-            ("sg", "2nd", "/C_"): "-ju",
-            ("sg", "3rd", "/C_"): "-si",
-            ("pl", "1st", "/C_"): "-we",
-            ("pl", "2nd", "/C_"): "-jal",
-            ("pl", "3rd", "/C_"): "-dej",
-            ("sg", "1st", "/V_"): "-ame",
-            ("sg", "2nd", "/V_"): "-aju",
-            ("sg", "3rd", "/V_"): "-asi",
-            ("pl", "1st", "/V_"): "-awe",
-            ("pl", "2nd", "/V_"): "-ajal",
-            ("pl", "3rd", "/V_"): "-adej"
-        }],
-        ["noun", {
-            "sg": "-",
-            "pl": "-ol"
-        }]
-    ]
-    # Here we generate these sentences by simply inflecting the previous sequences with the correct paradigms
-    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test2_{num_sentences}_incorrect_same.txt"))
-
-    # 3. Generate some sentences with never seen before verbs
-    new_verbs_p1 = mylang.generate_words(5, "verb", "/C_")
-    new_verbs_p2 = mylang.generate_words(5, "verb", "/V_")
-    new_verb_lexemes = {"verb": [*new_verbs_p1, *new_verbs_p2]}
-    # This should never raise an error since generated words are guaranteed to be unique
-    assert len(set(new_verb_lexemes["verb"]) & mylang.word_set) == 0
-    # Generate these test sentences with the new verbs
-    new_sentences, new_agreed_lexeme_sequences = mylang.generate_sentences(num_sentences,
-                                                                           required_words=new_verb_lexemes)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test3_{num_sentences}_correct_diff.txt"))
-
-    # 4. Generate some ungrammatical sentences with never seen before verbs
-    # Here we generate these sentences by simply inflecting the previous sequences with the incorrect paradigms
-    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test4_{num_sentences}_incorrect_diff.txt"))
-
-
-# Verbs conjugate regularly, but add an epenthetic vowel added based on whether the suffix causes CC
-def main_non_suppletive_allomorphy(language_name="non_suppletive_allomorphy"):
     # Create/load a base language
     mylang = create_language_base()
 
@@ -125,146 +48,208 @@ def main_non_suppletive_allomorphy(language_name="non_suppletive_allomorphy"):
     # Generate 100 nouns specific to this language
     for amount, noun_property in [(600, "3rd")]:
         mylang.generate_words(num_words=amount, part_of_speech="noun", paradigm=noun_property)
-    # Generate 350 words from each paradigm with approximately equal probability
-    for _ in range(750):
-        mylang.generate_words(num_words=1, part_of_speech="verb", paradigm="p0")
+    mylang.generate_words(num_words=700, part_of_speech="verb", paradigm="verb1")
 
     # Save the language
     mylang.dump_language(os.path.join("Languages", language_name))
 
-    # Generate some training sentences and save them
-    sentences = generate_and_save_sentences(mylang, language_name, 150000, "train")
-    print(f'There are {len(set(sentences))} unique sentences.')
+    # Generate 10% more sentences than we need
+    # We will sample test sentences from that set, and then remove them from the train sentences
+    # Whenever we sample one, we remove all instances of it from the training sentences
+    # There are three parameters:
+    # 1. Grammaticality of the agreement (correct vs incorrect)
+    # 2. Number of distractors (0 vs 1)
+    # 3. Generalization (seen roots, unseen roots, unseen roots with one example before)
 
-    # Return the training sentences
-    return sentences
-
-
-# =====================================BASIC LANGUAGE TESTING, REGULAR PARADIGMS=================+======================
-# Use the same language to make some ungrammatical conjugations
-# Temporary, probably will get rid of this soon
-def make_test_sentences_basic(train_sentences, language_name="one_regular_paradigm"):
-    # Load the original json file
-    mylang = language.load_language(os.path.join("Languages", language_name))
-
-    # Generate 5000 sentences from our four test distributions:
-    # 1. Correct grammar, same distribution of words
-    # 2. Incorrect grammar, same distribution of words
-    # 3. Correct grammar, different distribution of words
-    # 4. Incorrect grammar, different distribution of words
-    num_sentences = 5000
-
-    # 1. We start with the sentences from the same distribution
-    # Generate a test set with sentences never seen before
-    new_sentences = []
-    new_agreed_lexeme_sequences = []
-    while len(new_sentences) < num_sentences:
-        new_sentence, agreed_lexeme_sequence = mylang.generate_sentences(1)
-        # New sentence is a list containing just one element
-        if new_sentence[0] not in train_sentences:
-            new_sentences += new_sentence
-            new_agreed_lexeme_sequences += agreed_lexeme_sequence
-
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test1_{num_sentences}_correct_same.txt"))
-
-    # 2. Now we take these agreed_lexeme_sequences and generate surface forms with our own rules
-    # Here are the new paradigms
-    incorrect_paradigms = [
+    # Define the incorrect paradigms (verbs conjugate incorrectly)
+    # Class incorrect paradigms are caused by the correct suffix being attached to the wrong class or environment
+    incorrect_paradigms_class = [
         ["verb", {
-            ("sg", "1st"): "-dej",
-            ("sg", "2nd"): "-me",
-            ("sg", "3rd"): "-ju",
-            ("pl", "1st"): "-si",
-            ("pl", "2nd"): "-we",
-            ("pl", "3rd"): "-jal"
+            ("sg", "1st", "/C_"): "-me",
+            ("sg", "2nd", "/C_"): "-ju",
+            ("sg", "3rd", "/C_"): "-si",
+            ("pl", "1st", "/C_"): "-we",
+            ("pl", "2nd", "/C_"): "-jal",
+            ("pl", "3rd", "/C_"): "-dej",
+            ("sg", "1st", "/V_"): "-ame",
+            ("sg", "2nd", "/V_"): "-aju",
+            ("sg", "3rd", "/V_"): "-asi",
+            ("pl", "1st", "/V_"): "-awe",
+            ("pl", "2nd", "/V_"): "-ajal",
+            ("pl", "3rd", "/V_"): "-adej"
         }],
         # These aren't incorrect
         ["noun", {
             "sg": "-",
             "pl": "-ol"
         }],
+        # We need to redefine determiner inflection
         ["det", {
             "sg": "-duh",
             "pl": "-di",
         }]
     ]
-    # Here we generate these sentences by simply inflecting the previous sequences with the correct paradigms
-    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test2_{num_sentences}_incorrect_same.txt"))
 
-    # 3. Generate some sentences with never seen before verbs
-    new_verb_lexemes = {"verb": mylang.generate_words(10, "verb", "new")}
-    # This should never raise an error since generated words are guaranteed to be unique
-    assert len(set(new_verb_lexemes["verb"]) & mylang.word_set) == 0
-    # Generate these test sentences with the new verbs
-    new_sentences, new_agreed_lexeme_sequences = mylang.generate_sentences(num_sentences,
-                                                                           required_words=new_verb_lexemes)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test3_{num_sentences}_correct_diff.txt"))
-
-    # 4. Generate some ungrammatical sentences with never seen before verbs
-    # Here we generate these sentences by simply inflecting the previous sequences with the incorrect paradigms
-    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test4_{num_sentences}_incorrect_diff.txt"))
-
-
-# Main method run
-def main_basic(language_name="one_regular_paradigm"):
-    # Create/load a base language
-    mylang = create_language_base()
-
-    # Set the inflection paradigms
-    mylang.set_inflection_paradigms([
+    # Shift incorrect paradigms are caused by the correct class being shifted by one, so number and person is wrong
+    incorrect_paradigms_shift = [
         ["verb", {
-            ("sg", "1st"): "-me",
-            ("sg", "2nd"): "-ju",
-            ("sg", "3rd"): "-si",
-            ("pl", "1st"): "-we",
-            ("pl", "2nd"): "-jal",
-            ("pl", "3rd"): "-dej"
+            ("sg", "1st", "/C_"): "-dej",
+            ("sg", "2nd", "/C_"): "-me",
+            ("sg", "3rd", "/C_"): "-ju",
+            ("pl", "1st", "/C_"): "-si",
+            ("pl", "2nd", "/C_"): "-we",
+            ("pl", "3rd", "/C_"): "-jal",
+            ("sg", "1st", "/V_"): "-adej",
+            ("sg", "2nd", "/V_"): "-ame",
+            ("sg", "3rd", "/V_"): "-aju",
+            ("pl", "1st", "/V_"): "-asi",
+            ("pl", "2nd", "/V_"): "-awe",
+            ("pl", "3rd", "/V_"): "-ajal"
         }],
+        # These aren't incorrect
         ["noun", {
             "sg": "-",
             "pl": "-ol"
+        }],
+        # We need to redefine determiner inflection
+        ["det", {
+            "sg": "-duh",
+            "pl": "-di",
         }]
-    ])
+    ]
 
-    # Generate 100 nouns specific to this language
-    for amount, noun_property in [(600, "3rd")]:
-        mylang.generate_words(num_words=amount, part_of_speech="noun", paradigm=noun_property)
-    mylang.generate_words(num_words=700, part_of_speech="verb", paradigm="verb1")
+    # Generate new unseen roots. These may repeat with eachother, but may not be in our current wordset
+    unseen_roots = []
+    # Keep making new roots not in mylang's word set until we reach num_test
+    while len(unseen_roots) < num_test:
+        new_verb_root = mylang.generate_words(1, "verb", "new", add_to_lexicon=False)[0]
+        # These roots are guaranteed to not be in the word_set
+        unseen_roots.append(new_verb_root)
+    # We make unseen_roots into a dict since that's what generate_sentences requires
+    unseen_roots = {"verb": unseen_roots}
 
-    # Save the language
-    mylang.dump_language(os.path.join("Languages", language_name))
+    # We start by generating many sentences
+    sentences, sequences = mylang.generate_sentences(num_sentences=int(num_train * 1.1), required_words=None)
+    # We need a dictionary of sentence to sequence and a counter of sentences
+    # The dictionary will help us ensure that they're unique
+    # The counter will allow us to go back to the sentences from the mapping
+    sentence_to_sequence = {sentences[i]: sequences[i] for i in range(len(sentences))}
+    sentence_counts = Counter(sentences)
 
-    # Generate some training sentences and save them
-    sentences = generate_and_save_sentences(mylang, language_name, 100, "train")
-    print(f'There are {len(set(sentences))} unique sentences.')
+    # Iterate over every generalization type
+    for generalization_type in ["seen_roots", "unseen_roots", "one_shot"]:
+        print(f"Making test set for {generalization_type}")
 
-    # Return the train sentences for us to compare with
-    return sentences
+        # If we're looking at sentences with seen roots, then we just need to sample from our generated sentences
+        if generalization_type == "seen_roots":
+            # Get our random sentences and their sequences
+            random_sentences = rand.sample(list(sentence_to_sequence.keys()), k=num_test)
+            random_sequences = [sentence_to_sequence.pop(random_sentence) for random_sentence in random_sentences]
+
+            # This is the list of test sentences now
+            # It's guaranteed to be unique, since all keys in sentence_to_sequence are unique
+            # We need to make grammatical and ungrammatical test sentences now
+            grammatical_sentences = random_sentences
+            ungrammatical_sentences_class = language.inflect(random_sequences, incorrect_paradigms_class,
+                                                             mylang.phonemes)
+            ungrammatical_sentences_shift = language.inflect(random_sequences, incorrect_paradigms_shift,
+                                                             mylang.phonemes)
+
+        # Now let's make sentences with unseen roots
+        elif generalization_type == "unseen_roots":
+            # Now that we have our unseen verb roots, we can make sentences
+            sentences, sequences = mylang.generate_sentences(num_sentences=num_test, required_words=unseen_roots)
+
+            # This is the list of test sentences now
+            # We need to make grammatical and ungrammatical test sentences now
+            grammatical_sentences = sentences
+            ungrammatical_sentences_class = language.inflect(sequences, incorrect_paradigms_class, mylang.phonemes)
+            ungrammatical_sentences_shift = language.inflect(sequences, incorrect_paradigms_shift, mylang.phonemes)
+
+        # Finally we make sentences in a one-shot setting
+        else:
+            # Now that we have our unseen verb roots, we can make sentences
+            sentences, sequences = mylang.generate_sentences(num_sentences=num_test, required_words=unseen_roots)
+
+            # This is the not yet list of test sentences
+            # We need to find the verb for each of these sentences first
+            # Then, we will generate an additional sentence with that verb.
+            # From there, we will remake that sentence with an incorrect inflection
+            prompt_sentences = sentences
+            prompt_verbs = find_verbs_given_sequence(sequences)
+
+            # Now we generate num_test sentences with these verbs
+            grammatical_test_sentences = []
+            # Iterate over each verb, and generate a random sentence
+            # We'll store the test_sequences to make the ungrammatical test sentences
+            test_sequences = []
+            for verb in prompt_verbs:
+                # Reformat the tagged verb for generate sentence, and set the verb's paradigm to "new"
+                tagged_verb = {"verb": [(verb, "new")]}
+                # Make a new sentence and sequence
+                test_sentence, test_sequence = mylang.generate_sentences(num_sentences=1, required_words=tagged_verb)
+
+                # generate_sentences returns a list for test_sentence and test_sequence, we only want the first element
+                # The sentence is already in the final form, we can mark it as grammatical
+                grammatical_test_sentences.append(test_sentence[0])
+                test_sequences.append(test_sequence[0])
+            # Now we remake the ungrammatical sentences with the ungrammatical paradigms
+            ungrammatical_test_sentences_class = language.inflect(test_sequences, incorrect_paradigms_class,
+                                                                  mylang.phonemes)
+            ungrammatical_test_sentences_shift = language.inflect(test_sequences, incorrect_paradigms_shift,
+                                                                  mylang.phonemes)
+
+            # Now we should combine them!
+            grammatical_sentences = [prompt_sentences[i] + ". " + grammatical_test_sentences[i]
+                                     for i in range(num_test)]
+            ungrammatical_sentences_class = [prompt_sentences[i] + ". " + ungrammatical_test_sentences_class[i]
+                                             for i in range(num_test)]
+            ungrammatical_sentences_shift = [prompt_sentences[i] + ". " + ungrammatical_test_sentences_shift[i]
+                                             for i in range(num_test)]
+
+        # Save these now
+        language.save_sentences(sentences=grammatical_sentences,
+                                filepath=os.path.join("Languages",
+                                                      language_name,
+                                                      f"{num_test}_{generalization_type}_grammatical.txt"))
+        language.save_sentences(sentences=ungrammatical_sentences_class,
+                                filepath=os.path.join("Languages",
+                                                      language_name,
+                                                      f"{num_test}_{generalization_type}_ungrammatical_class.txt"))
+        language.save_sentences(sentences=ungrammatical_sentences_shift,
+                                filepath=os.path.join("Languages",
+                                                      language_name,
+                                                      f"{num_test}_{generalization_type}_ungrammatical_shift.txt"))
+
+    # Save the training sentences
+    # First, we make them full sentences again
+    train_sentences = [item for item, count in sentence_counts.items() for _ in range(count)]
+    # Just to make sure, we want to be sure that there are enough training sentences
+    # If there are, we want to cut down the number of sentences to the right amount
+    assert len(train_sentences) >= num_train
+    random.shuffle(train_sentences)
+    train_sentences = train_sentences[:num_train]
+    # Then we want to incrementally make files with powers of 10, until we reach the train_num
+    incremental_num_train = 10
+    # Keep on making files
+    while incremental_num_train <= num_train:
+        # Save those sentences
+        language.save_sentences(sentences=train_sentences[:incremental_num_train],
+                                filepath=os.path.join("Languages",
+                                                      language_name,
+                                                      "train",
+                                                      f"{incremental_num_train}_sentences.txt"))
+        # Increment by a factor of 10
+        incremental_num_train *= 10
 
 
-def regular_paradigms(language_name="one_regular_paradigm", num_train=1e7, num_test=5000):
+# =====================================BASIC LANGUAGE TESTING, REGULAR PARADIGMS=================+======================
+# Makes verbs of one regular paradigm
+def regular_paradigms(language_name="one_regular_paradigm", num_train=1e6, num_test=5000):
     # Make num_train and num_test integers
     num_train = int(num_train)
     num_test = int(num_test)
-    # num_train should be a power of 10 and that it's at at least 10 sentences
+    # num_train should be a power of 10 and that it's at least 10 sentences
     assert math.log10(num_train) % 1 == 0 and num_train >= 10
 
     # Create/load a base language
@@ -329,8 +314,8 @@ def regular_paradigms(language_name="one_regular_paradigm", num_train=1e7, num_t
     # Keep making new roots not in mylang's word set until we reach num_test
     while len(unseen_roots) < num_test:
         new_verb_root = mylang.generate_words(1, "verb", "new", add_to_lexicon=False)[0]
-        if new_verb_root not in mylang.word_set:
-            unseen_roots.append(new_verb_root)
+        # These roots are guaranteed to not be in the word_set
+        unseen_roots.append(new_verb_root)
     # We make unseen_roots into a dict since that's what generate_sentences requires
     unseen_roots = {"verb": unseen_roots}
 
@@ -339,7 +324,7 @@ def regular_paradigms(language_name="one_regular_paradigm", num_train=1e7, num_t
     # We need a dictionary of sentence to sequence and a counter of sentences
     # The dictionary will help us ensure that they're unique
     # The counter will allow us to go back to the sentences from the mapping
-    sentence_to_sequence = {sentences[i]: sequences[i] for i in range(len(sentences) )}
+    sentence_to_sequence = {sentences[i]: sequences[i] for i in range(len(sentences))}
     sentence_counts = Counter(sentences)
 
     # Iterate over every generalization type
@@ -349,7 +334,7 @@ def regular_paradigms(language_name="one_regular_paradigm", num_train=1e7, num_t
         # If we're looking at sentences with seen roots, then we just need to sample from our generated sentences
         if generalization_type == "seen_roots":
             # Get our random sentences and their sequences
-            random_sentences = rand.sample(list(sentence_to_sequence.keys() ), k=num_test)
+            random_sentences = rand.sample(list(sentence_to_sequence.keys()), k=num_test)
             random_sequences = [sentence_to_sequence.pop(random_sentence) for random_sentence in random_sentences]
 
             # This is the list of test sentences now
@@ -425,105 +410,27 @@ def regular_paradigms(language_name="one_regular_paradigm", num_train=1e7, num_t
     # Then we want to incrementally make files with powers of 10, until we reach the train_num
     incremental_num_train = 10
     # Keep on making files
-    while incremental_num_train != num_train:
+    while incremental_num_train <= num_train:
         # Save those sentences
         language.save_sentences(sentences=train_sentences[:incremental_num_train],
                                 filepath=os.path.join("Languages",
                                                       language_name,
                                                       "train",
-                                                      f"{incremental_num_train}_sentences.txt") )
+                                                      f"{incremental_num_train}_sentences.txt"))
         # Increment by a factor of 10
         incremental_num_train *= 10
 
 
 # =====================================BASIC LANGUAGE TESTING, VERB CLASSES======================+======================
-# Use the same language to make some ungrammatical conjugations
-def make_test_sentences_classes(train_sentences, language_name="two_regular_classes"):
-    # Load the original json file
-    mylang = language.load_language(os.path.join("Languages", language_name))
+# Makes verbs of two classes, p1 and p2, with completely different paradigms
+# The paradigms are not predictable by the base form of the verb
+def two_verb_classes(language_name="two_verb_classes", num_train=1e6, num_test=5000):
+    # Make num_train and num_test integers
+    num_train = int(num_train)
+    num_test = int(num_test)
+    # num_train should be a power of 10 and that it's at least 10 sentences
+    assert math.log10(num_train) % 1 == 0 and num_train >= 10
 
-    # Generate 5000 sentences from our four test distributions:
-    # 1. Correct grammar, same distribution of words
-    # 2. Incorrect grammar, same distribution of words
-    # 3. Correct grammar, different distribution of words
-    # 4. Incorrect grammar, different distribution of words
-    num_sentences = 5000
-
-    # 1. We start with the sentences from the same distribution
-    # Generate a test set with sentences never seen before
-    new_sentences = []
-    new_agreed_lexeme_sequences = []
-    while len(new_sentences) < num_sentences:
-        new_sentence, agreed_lexeme_sequence = mylang.generate_sentences(1)
-        # New sentence is a list containing just one element
-        if new_sentence[0] not in train_sentences:
-            new_sentences += new_sentence
-            new_agreed_lexeme_sequences += agreed_lexeme_sequence
-    print(new_sentences)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test1_{num_sentences}_correct_same.txt"))
-
-    # 2. Now we take these agreed_lexeme_sequences and generate surface forms with our own rules
-    # Here are the new paradigms
-    # We just flipped which were p1 and p2
-    incorrect_paradigms = [
-        ["verb", {
-            ("sg", "1st", "p2"): "-me",
-            ("sg", "2nd", "p2"): "-ju",
-            ("sg", "3rd", "p2"): "-si",
-            ("pl", "1st", "p2"): "-we",
-            ("pl", "2nd", "p2"): "-jal",
-            ("pl", "3rd", "p2"): "-dej",
-            ("sg", "1st", "p1"): "-jo",
-            ("sg", "2nd", "p1"): "-tu",
-            ("sg", "3rd", "p1"): "-essi",
-            ("pl", "1st", "p1"): "-noj",
-            ("pl", "2nd", "p1"): "-voj",
-            ("pl", "3rd", "p1"): "-loro"
-        }],
-        ["noun", {
-            "sg": "-",
-            "pl": "-ol"
-        }]
-    ]
-    # Here we generate these sentences by simply inflecting the previous sequences with the correct paradigms
-    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test2_{num_sentences}_incorrect_same.txt"))
-
-    # 3. Generate some sentences with never seen before verbs
-    new_verbs_p1 = mylang.generate_words(5, "verb", "new.p1")
-    new_verbs_p2 = mylang.generate_words(5, "verb", "new.p2")
-    new_verb_lexemes = {"verb": [*new_verbs_p1, *new_verbs_p2]}
-    # This should never raise an error since generated words are guaranteed to be unique
-    assert len(set(new_verb_lexemes["verb"]) & mylang.word_set) == 0
-    # Generate these test sentences with the new verbs
-    new_sentences, new_agreed_lexeme_sequences = mylang.generate_sentences(num_sentences,
-                                                                           required_words=new_verb_lexemes)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test3_{num_sentences}_correct_diff.txt"))
-
-    # 4. Generate some ungrammatical sentences with never seen before verbs
-    # Here we generate these sentences by simply inflecting the previous sequences with the incorrect paradigms
-    new_sentences = language.inflect(new_agreed_lexeme_sequences, incorrect_paradigms, mylang.phonemes)
-    # Save them
-    language.save_sentences(sentences=new_sentences,
-                            filepath=os.path.join("Languages",
-                                                  language_name,
-                                                  f"test4_{num_sentences}_incorrect_diff.txt"))
-
-
-# Makes verbs according to two verb classes of near equal frequency
-def main_verb_classes(language_name="two_regular_classes"):
     # Create/load a base language
     mylang = create_language_base()
 
@@ -560,12 +467,203 @@ def main_verb_classes(language_name="two_regular_classes"):
     # Save the language
     mylang.dump_language(os.path.join("Languages", language_name))
 
-    # Generate some training sentences and save them
-    sentences = generate_and_save_sentences(mylang, language_name, 1000000, "train")
-    print(f'There are {len(set(sentences))} unique sentences.')
+    # Generate 10% more sentences than we need
+    # We will sample test sentences from that set, and then remove them from the train sentences
+    # Whenever we sample one, we remove all instances of it from the training sentences
+    # There are three parameters:
+    # 1. Grammaticality of the agreement (correct vs incorrect)
+    # 2. Number of distractors (0 vs 1)
+    # 3. Generalization (seen roots, unseen roots, unseen roots with one example before)
 
-    # Return the training sentences
-    return sentences
+    # Define the incorrect paradigms (verbs conjugate incorrectly)
+    # Class incorrect paradigms are caused by the correct suffix being attached to the wrong class or environment
+    incorrect_paradigms_class = [
+        ["verb", {
+            ("sg", "1st", "p1"): "-jo",
+            ("sg", "2nd", "p1"): "-tu",
+            ("sg", "3rd", "p1"): "-essi",
+            ("pl", "1st", "p1"): "-noj",
+            ("pl", "2nd", "p1"): "-voj",
+            ("pl", "3rd", "p1"): "-loro",
+            ("sg", "1st", "p2"): "-me",
+            ("sg", "2nd", "p2"): "-ju",
+            ("sg", "3rd", "p2"): "-si",
+            ("pl", "1st", "p2"): "-we",
+            ("pl", "2nd", "p2"): "-jal",
+            ("pl", "3rd", "p2"): "-dej"
+        }],
+        # These aren't incorrect
+        ["noun", {
+            "sg": "-",
+            "pl": "-ol"
+        }],
+        # We need to redefine determiner inflection
+        ["det", {
+            "sg": "-duh",
+            "pl": "-di",
+        }]
+    ]
+
+    # Shift incorrect paradigms are caused by the correct class being shifted by one, so number and person is wrong
+    incorrect_paradigms_shift = [
+        ["verb", {
+            ("sg", "1st", "p1"): "-dej",
+            ("sg", "2nd", "p1"): "-me",
+            ("sg", "3rd", "p1"): "-ju",
+            ("pl", "1st", "p1"): "-si",
+            ("pl", "2nd", "p1"): "-we",
+            ("pl", "3rd", "p1"): "-jal",
+            ("sg", "1st", "p2"): "-loro",
+            ("sg", "2nd", "p2"): "-jo",
+            ("sg", "3rd", "p2"): "-tu",
+            ("pl", "1st", "p2"): "-essi",
+            ("pl", "2nd", "p2"): "-noj",
+            ("pl", "3rd", "p2"): "-voj"
+        }],
+        # These aren't incorrect
+        ["noun", {
+            "sg": "-",
+            "pl": "-ol"
+        }],
+        # We need to redefine determiner inflection
+        ["det", {
+            "sg": "-duh",
+            "pl": "-di",
+        }]
+    ]
+
+    # Generate new unseen roots. These may repeat with eachother, but may not be in our current wordset
+    unseen_roots = []
+    # Keep making new roots not in mylang's word set until we reach num_test
+    while len(unseen_roots) < num_test:
+        # Make a p1 verb
+        new_verb_root = mylang.generate_words(1, "verb", "new.p1", add_to_lexicon=False)[0]
+        # These roots are guaranteed to not be in the word_set
+        unseen_roots.append(new_verb_root)
+
+        # Do the same with a verb from p2
+        new_verb_root = mylang.generate_words(1, "verb", "new.p2", add_to_lexicon=False)[0]
+        unseen_roots.append(new_verb_root)
+    # We make unseen_roots into a dict since that's what generate_sentences requires
+    unseen_roots = {"verb": unseen_roots}
+
+    # We start by generating many sentences
+    sentences, sequences = mylang.generate_sentences(num_sentences=int(num_train * 1.1), required_words=None)
+    # We need a dictionary of sentence to sequence and a counter of sentences
+    # The dictionary will help us ensure that they're unique
+    # The counter will allow us to go back to the sentences from the mapping
+    sentence_to_sequence = {sentences[i]: sequences[i] for i in range(len(sentences))}
+    sentence_counts = Counter(sentences)
+
+    # Iterate over every generalization type
+    for generalization_type in ["seen_roots", "unseen_roots", "one_shot"]:
+        print(f"Making test set for {generalization_type}")
+
+        # If we're looking at sentences with seen roots, then we just need to sample from our generated sentences
+        if generalization_type == "seen_roots":
+            # Get our random sentences and their sequences
+            random_sentences = rand.sample(list(sentence_to_sequence.keys()), k=num_test)
+            random_sequences = [sentence_to_sequence.pop(random_sentence) for random_sentence in random_sentences]
+
+            # This is the list of test sentences now
+            # It's guaranteed to be unique, since all keys in sentence_to_sequence are unique
+            # We need to make grammatical and ungrammatical test sentences now
+            grammatical_sentences = random_sentences
+            ungrammatical_sentences_class = language.inflect(random_sequences, incorrect_paradigms_class,
+                                                             mylang.phonemes)
+            ungrammatical_sentences_shift = language.inflect(random_sequences, incorrect_paradigms_shift,
+                                                             mylang.phonemes)
+
+        # Now let's make sentences with unseen roots
+        elif generalization_type == "unseen_roots":
+            # Now that we have our unseen verb roots, we can make sentences
+            sentences, sequences = mylang.generate_sentences(num_sentences=num_test, required_words=unseen_roots)
+
+            # This is the list of test sentences now
+            # We need to make grammatical and ungrammatical test sentences now
+            grammatical_sentences = sentences
+            ungrammatical_sentences_class = language.inflect(sequences, incorrect_paradigms_class, mylang.phonemes)
+            ungrammatical_sentences_shift = language.inflect(sequences, incorrect_paradigms_shift, mylang.phonemes)
+
+        # Finally we make sentences in a one-shot setting
+        else:
+            # Now that we have our unseen verb roots, we can make sentences
+            sentences, sequences = mylang.generate_sentences(num_sentences=num_test, required_words=unseen_roots)
+
+            # This is the not yet list of test sentences
+            # We need to find the verb for each of these sentences first
+            # Then, we will generate an additional sentence with that verb.
+            # From there, we will remake that sentence with an incorrect inflection
+            prompt_sentences = sentences
+            # Unlike the other two, we also want to check to see which class the verb belongs to
+            prompt_verbs = find_verbs_given_sequence(sequences, ['p1', 'p2'])
+
+            # Now we generate num_test sentences with these verbs
+            grammatical_test_sentences = []
+            # Iterate over each verb, and generate a random sentence
+            # We'll store the test_sequences to make the ungrammatical test sentences
+            test_sequences = []
+            for verb, verb_class_list in prompt_verbs:
+                # Make sure there's only one verb class that each verb belongs to, then get that class
+                assert len(verb_class_list) == 1
+                verb_class = verb_class_list[0]
+                # Reformat the tagged verb for generate sentence, and set the verb's paradigm to "new"
+                tagged_verb = {"verb": [(verb, f"new.{verb_class}")]}
+                # Make a new sentence and sequence
+                test_sentence, test_sequence = mylang.generate_sentences(num_sentences=1, required_words=tagged_verb)
+
+                # generate_sentences returns a list for test_sentence and test_sequence, we only want the first element
+                # The sentence is already in the final form, we can mark it as grammatical
+                grammatical_test_sentences.append(test_sentence[0])
+                test_sequences.append(test_sequence[0])
+            # Now we remake the ungrammatical sentences with the ungrammatical paradigms
+            ungrammatical_test_sentences_class = language.inflect(test_sequences, incorrect_paradigms_class,
+                                                                  mylang.phonemes)
+            ungrammatical_test_sentences_shift = language.inflect(test_sequences, incorrect_paradigms_shift,
+                                                                  mylang.phonemes)
+
+            # Now we should combine them!
+            grammatical_sentences = [prompt_sentences[i] + ". " + grammatical_test_sentences[i]
+                                     for i in range(num_test)]
+            ungrammatical_sentences_class = [prompt_sentences[i] + ". " + ungrammatical_test_sentences_class[i]
+                                             for i in range(num_test)]
+            ungrammatical_sentences_shift = [prompt_sentences[i] + ". " + ungrammatical_test_sentences_shift[i]
+                                             for i in range(num_test)]
+
+        # Save these now
+        language.save_sentences(sentences=grammatical_sentences,
+                                filepath=os.path.join("Languages",
+                                                      language_name,
+                                                      f"{num_test}_{generalization_type}_grammatical.txt"))
+        language.save_sentences(sentences=ungrammatical_sentences_class,
+                                filepath=os.path.join("Languages",
+                                                      language_name,
+                                                      f"{num_test}_{generalization_type}_ungrammatical_class.txt"))
+        language.save_sentences(sentences=ungrammatical_sentences_shift,
+                                filepath=os.path.join("Languages",
+                                                      language_name,
+                                                      f"{num_test}_{generalization_type}_ungrammatical_shift.txt"))
+
+    # Save the training sentences
+    # First, we make them full sentences again
+    train_sentences = [item for item, count in sentence_counts.items() for _ in range(count)]
+    # Just to make sure, we want to be sure that there are enough training sentences
+    # If there are, we want to cut down the number of sentences to the right amount
+    assert len(train_sentences) >= num_train
+    random.shuffle(train_sentences)
+    train_sentences = train_sentences[:num_train]
+    # Then we want to incrementally make files with powers of 10, until we reach the train_num
+    incremental_num_train = 10
+    # Keep on making files
+    while incremental_num_train <= num_train:
+        # Save those sentences
+        language.save_sentences(sentences=train_sentences[:incremental_num_train],
+                                filepath=os.path.join("Languages",
+                                                      language_name,
+                                                      "train",
+                                                      f"{incremental_num_train}_sentences.txt"))
+        # Increment by a factor of 10
+        incremental_num_train *= 10
 
 
 # =====================================GENERALLY HELPFUL METHODS========================================================
@@ -602,7 +700,10 @@ def find_num_distractors(new_agreed_lexeme_sequence):
 # Finds the verbs given a list of sequences
 # Returns just the verbs
 # In my grammar (2024 Jan 17), there is always one verb. The behavior on sentences with more than one verb is undefined
-def find_verbs_given_sequence(sequences):
+# Check for properties is by default none, but may be a list of properties. Instead of being a list of the verb roots,
+#   if you pass in check_for_properties, the output will be a list of tuples, where the first element if the verb root
+#   and the second element is a containing all the properties that are both in check_for_properties and the verb.
+def find_verbs_given_sequence(sequences, check_for_properties=None):
     # Store the verbs in a list
     verbs = []
     # For each sequence, find the lexical item tagged with "verb"
@@ -612,7 +713,14 @@ def find_verbs_given_sequence(sequences):
             # Look at the properties of each word
             if "verb" in lexical_item[1]:
                 # If it's a verb, then we add the word itself to the verbs list
-                verbs.append(lexical_item[0])
+                root = lexical_item[0]
+                # If we're checking to see that there are any additional properties, then check to see if they exist
+                if check_for_properties:
+                    overlapping_properties = list(set(check_for_properties) & set(lexical_item[1]) )
+                    verbs.append((root, overlapping_properties))
+                # Otherwise, just return the root
+                else:
+                    verbs.append(root)
     # And that's it!
     return verbs
 
@@ -631,7 +739,7 @@ def generate_and_save_sentences(lang, language_name, num_sentences, sentence_pre
     training_sizes = np.logspace(1, 7, num=7, base=10, dtype=int)
 
     # Gradually increase the number of training sentences
-    for training_set_index in range(len(training_sizes) ):
+    for training_set_index in range(len(training_sizes)):
         # The number of sentences we need is the training size, minus what's already in there
         # The number of sentences that's already in there is the previous training set index
         if training_set_index == 0:
@@ -732,10 +840,8 @@ def create_language_base():
 if __name__ == "__main__":
     # Currently with sanity check settings
     # basic creates one regular paradigm
-    regular_paradigms()
+    # regular_paradigms()
     # verb_classes creates two regular paradigms, where the class of the verb is not predictable
-    ## train_sentences_classes = main_verb_classes()
-    ## make_test_sentences_classes(train_sentences_classes)
+    two_verb_classes()
     # non_suppletive_allomorphy creates one regular paradigm with regular CV allomorphy
-    ## train_sentences_non_suppletive_allomorphy = main_non_suppletive_allomorphy()
-    ## make_test_sentences_non_suppletive_allomorphy(train_sentences_non_suppletive_allomorphy)
+    # non_suppletive_allomorphy()

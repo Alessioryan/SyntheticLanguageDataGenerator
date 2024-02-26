@@ -1,5 +1,3 @@
-# Nothing in Languages
+# Nothing in Languages or old languages
 /Languages/*/train/*
-
-# Nothing in the languages within SyntheticallyTrainedLLM_Hyak
-SyntheticallyTrainedLLM_Hyak/*
+/Old_Languages/*
