@@ -1,3 +1,11 @@
 # Nothing in Languages or old languages
-/Languages/*/train/*
-/Old_Languages/*
+Languages/**
+Old_Languages/**
+# Allow train.json
+!/**/mylang.json
+
+# These are files that help with the development of more advanced features
+customize_generator.py
+Customize_Languages/*
+
+
