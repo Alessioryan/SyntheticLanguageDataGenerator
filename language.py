@@ -105,41 +105,32 @@ def inflect(agreed_lexeme_sequences, paradigms, phonemes):
                             # An example environment is "/C_"
                             # If it's a suffix, it only has a left environment
                             # We will want to look at the sounds before where the "-" would attach
-                            if left_environment:  # Suffix
-                                left_phonemes = lexeme[-len(left_environment):]
-                                # We want to make sure that every phoneme on the left matches the environment
-                                for i in range(len(left_phonemes) ):
-                                    # The way that we handle that depends on whether the environment is a natural class
-                                    # If it's a natural class, we break if it's not a member of that class
-                                    if left_environment[i] in phonemes:
-                                        if left_phonemes[i] not in phonemes[left_environment[i]]:
-                                            perfect_property_match = False
-                                            break
-                                    # Otherwise, we check for an orthographic match
-                                    else:
-                                        if left_phonemes[i] != left_environment[i]:
-                                            perfect_property_match = False
-                                            break
+                            # The triggers are the sounds in the words
+                            # The environment is from the inputted property
+                            if left_environment:
+                                triggers = lexeme[-len(left_environment):]
+                                environment = left_environment
                             # If it's a prefix, we want to look at the sounds after the "-"
-                            elif right_environment:  # Prefix
-                                right_phonemes = lexeme[:len(right_environment)]
-                                # Sanity check
-                                assert len(right_phonemes) == len(right_environment)
-                                # We want to make sure that every phoneme on the right matches the environment
-                                for i in range(len(right_phonemes) ):
-                                    # The way that we handle that depends on whether the environment is a natural class
-                                    # If it's a natural class, we break if it's not a member of that class
-                                    if right_environment[i] in phonemes:
-                                        if right_phonemes[i] not in phonemes[right_environment[i]]:
-                                            perfect_property_match = False
-                                            break
-                                    # Otherwise, we check for an orthographic match
-                                    else:
-                                        if right_phonemes[i] != right_environment[i]:
-                                            perfect_property_match = False
-                                            break
+                            elif right_environment:
+                                triggers = lexeme[:len(right_environment)]
+                                environment = right_environment
                             else:
-                                raise Exception("Circumfixes are not yet handled.")
+                                raise Exception("Unknown error! Neither left nor right environment.")
+                            # The triggers should be the same length as the environment
+                            assert len(triggers) == len(environment)
+                            # We want to make sure that every phoneme on the left matches the environment
+                            for i in range(len(triggers) ):
+                                # The way that we handle that depends on whether the environment is a natural class
+                                # If it's a natural class, we break if it's not a member of that class
+                                if environment[i] in phonemes:
+                                    if triggers[i] not in phonemes[environment[i]]:
+                                        perfect_property_match = False
+                                        break
+                                # Otherwise, we check for an orthographic match
+                                else:
+                                    if triggers[i] != environment[i]:
+                                        perfect_property_match = False
+                                        break
                         # If a rule property requires a feature's absence, we handle it differently
                         elif rule_property[0] == "*":
                             # We just want to make sure that this feature does not exist in the lexeme's properties
