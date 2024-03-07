@@ -395,7 +395,7 @@ class Language:
     # The default sampling method is Zipfian, set with 'zipfian' for sampling_method. You may also set this as uniform,
     #   setting sampling_method to 'uniform'. All other values will raise an error.
     def generate_sentences(self, num_sentences, required_words=None, sampling_method='zipfian',
-                           regenerate_exception_sentences=False):
+                           ignore_exception_sentences=False):
         # Make sure that sampling_method is 'zipfian' or 'uniform'
         if sampling_method not in ['zipfian', 'uniform']:
             raise ValueError(f'Sampling method {sampling_method} illegal.')
@@ -644,14 +644,15 @@ class Language:
             # We always catch exceptions
             except Exception:
                 # If we want to regenerate, then we keep track of the number of sentences we regenerated
-                if regenerate_exception_sentences:
+                if ignore_exception_sentences:
                     exception_sentences += 1
                 # Otherwise, we raise an error
                 else:
                     raise Exception('Error raised during sentence generation. Solve above.')
         # When we finish generating the number of sentences we want, then we print the number of regenerations if wanted
-        if regenerate_exception_sentences:
-            print(f"When generating {num_sentences}, {exception_sentences} were regenerated.")
+        if ignore_exception_sentences:
+            print(f"When trying to generate {num_sentences}, {exception_sentences} were ignored. \n"
+                  f"Total sentences generated: {num_sentences - exception_sentences}")
         # Finally, we exit the loop and return the list of sentences
         return sentences, agreed_lexeme_sequences
 
