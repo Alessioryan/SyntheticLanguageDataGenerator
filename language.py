@@ -348,6 +348,28 @@ class Language:
         # Add the word to the language's word_set
         self.word_set.add(surface_form)
 
+    # Generate one syllable from the language
+    # Syllable structure can be left empty, a string for the syllable structure, or a list of possible syllables
+    def generate_syllable(self, syllable_structure=None):
+        # Get a syllable structure if there isn't any yet
+        if syllable_structure is None:
+            syllable_structure = random.choice(self.syllables)
+        # If someone passes in a list, then choose a structure from that list randomly
+        elif type(syllable_structure) is list:
+            syllable_structure = random.choice(syllable_structure)
+        # Check to make sure that if it's neither of the above, it's a string
+        elif type(syllable_structure) is not str:
+            raise ValueError(f"syllable_structure must be of type None, list, or str. "
+                             f"{type(syllable_structure)} is invalid")
+        # Build a syllable one phoneme at a time
+        syllable = ""
+        # For every natural class in the syllable, choose a random phoneme that fits that description
+        for natural_class in syllable_structure:
+            # Find a random phoneme from that natural class and add it to the word
+            syllable += (nprand.choice(self.phonemes[natural_class]))
+        # And then we return the syllable
+        return syllable
+
     # Add words to our lexicon at the end of the list for that part of speech
     # Words can be individual words or tuples consisting of (word, paradigm_number)
     # Paradigm is a mandatory string parameter which defines the words as being part of that paradigm
@@ -365,11 +387,10 @@ class Language:
             # For every syllable, choose a random syllable structure and construct a word out of it
             word = ""
             for syllable in range(num_syllables):
+                # Get a random syllable structure and get a syllable from it
                 syllable_structure = random.choice(self.syllables)
-                # For every natural class in the syllable, choose a random phoneme that fits that description
-                for natural_class in syllable_structure:
-                    # Find a random phoneme from that natural class and add it to the word
-                    word += (nprand.choice(self.phonemes[natural_class]))
+                # Add the syllable to the word
+                word += self.generate_syllable(syllable_structure)
             # If we generated a new word, we add it to our lexicon and to the words we made
             if word not in self.word_set:
                 new_words.append((word, paradigm))
