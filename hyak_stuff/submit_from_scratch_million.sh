@@ -12,8 +12,8 @@
 #SBATCH --time=24:00:00
 
 #SBATCH --export=all
-#SBATCH --output=sh_output
-#SBATCH --error=sh_error
+#SBATCH --output=sh_output_milscratch
+#SBATCH --error=sh_error_milscratch
 
 
 # Modules to use

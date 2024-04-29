@@ -6,7 +6,7 @@ two_regular_classes_dir = "two_verb_classes"
 non_suppletive_allomorphy_dir = "non_suppletive_allomorphy"
 
 # Get the amount of training sentences
-training_amounts = [10 ** exp for exp in range(2, 7)]  # We want to go over all the values from 2 to 6 inclusive
+training_amounts = [10 ** 6]  # A million
 
 for agreement_type_directory in [one_regular_paradigm_dir, two_regular_classes_dir, non_suppletive_allomorphy_dir]:
     for training_amount in training_amounts:
@@ -16,7 +16,7 @@ for agreement_type_directory in [one_regular_paradigm_dir, two_regular_classes_d
         # Train the model
         train_command = [
             "python3",
-            "run_lm_finetuning.py",
+            "run_lm.py",
             "--output_dir=Languages/{}/output".format(agreement_type_directory),
             "--model_type=gpt2",
             "--model_name_or_path=gpt2",
@@ -36,7 +36,7 @@ for agreement_type_directory in [one_regular_paradigm_dir, two_regular_classes_d
             if agreement_type_directory != one_regular_paradigm_dir:
                 test_command_class = [
                     "python3",
-                    "modified_test.py",
+                    "modified_test_from_scratch.py",
                     "--train_data_file=Languages/{}/{}_sentences.txt".format(agreement_type_directory, training_amount),
                     "--output_dir=Languages/{}/output".format(agreement_type_directory),
                     "--model_type=gpt2",
@@ -55,7 +55,7 @@ for agreement_type_directory in [one_regular_paradigm_dir, two_regular_classes_d
             # Run the test command on the shift ungrammatical ones
             test_command_shift = [
                 "python3",
-                "modified_test.py",
+                "modified_test_from_scratch.py",
                 "--train_data_file=Languages/{}/{}_sentences.txt".format(agreement_type_directory, training_amount),
                 "--output_dir=Languages/{}/output".format(agreement_type_directory),
                 "--model_type=gpt2",

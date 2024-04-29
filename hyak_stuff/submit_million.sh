@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=train_3_all_sizes
+#SBATCH --job-name=train_3_million
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=tosolini@uw.edu
 
@@ -9,11 +9,11 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=20G
 #SBATCH --gres=gpu:1
-#SBATCH --time=24:00:00
+#SBATCH --time=5:00:00
 
 #SBATCH --export=all
-#SBATCH --output=sh_output
-#SBATCH --error=sh_error
+#SBATCH --output=sh_output_million
+#SBATCH --error=sh_error_million
 
 
 # Modules to use
@@ -21,4 +21,4 @@
 
 # Your programs to run.
 # python3 main_multitest.py
-srun --label python3 main_multitest.py "${@}"
+srun --label python3 main_multitest_million.py "${@}"

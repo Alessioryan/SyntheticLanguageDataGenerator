@@ -12,8 +12,8 @@
 #SBATCH --time=24:00:00
 
 #SBATCH --export=all
-#SBATCH --output=sh_output
-#SBATCH --error=sh_error
+#SBATCH --output=sh_output_scratch
+#SBATCH --error=sh_error_scratch
 
 
 # Modules to use
@@ -21,4 +21,4 @@
 
 # Your programs to run.
 # python3 main_multitest.py
-srun --label python3 main_multitest.py "${@}"
+srun --label python3 main_multitest_from_scratch.py "${@}"
