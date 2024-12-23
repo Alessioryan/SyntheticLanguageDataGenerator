@@ -83,6 +83,7 @@ MODEL_CLASSES = {
 
 class TextDataset(Dataset):
     def __init__(self, tokenizer, args, file_path="train", block_size=512):
+        print("FILE PATH IS: " + file_path)
         assert os.path.isfile(file_path)
         directory, filename = os.path.split(file_path)
         cached_features_file = os.path.join(
@@ -114,7 +115,7 @@ class TextDataset(Dataset):
         self.examples = []
         for t in tokenized_text:  # for each line in text
             self.examples.append(tokenizer.build_inputs_with_special_tokens(t))
-        print(self.examples)
+        # print(self.examples)  # I commented this line out because I don't think it's necessary
 
         logger.info("Saving features into cached file %s", cached_features_file)
         with open(cached_features_file, "wb") as handle:
@@ -437,7 +438,7 @@ def evaluate(args, model, tokenizer, prefix="", number=None):
             logger.info("  %s = %s", key, str(result[key]))
             writer.write("%s = %s\n" % (key, str(result[key])))
 
-    print("This is result:", result)
+    # print("This is result:", result)
     return result
 
 

@@ -9,6 +9,8 @@ from tqdm import tqdm
 
 # Method used to save sentences to a txt file
 def save_sentences(sentences, filepath):
+    # Make the file it doesn't currently exist
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
     # Open the file write only
     with open(filepath, "w") as file:
         # We want each string to be ended with a period and followed by a new line

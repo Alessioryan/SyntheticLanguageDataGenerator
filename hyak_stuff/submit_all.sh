@@ -12,13 +12,8 @@
 #SBATCH --time=24:00:00
 
 #SBATCH --export=all
-#SBATCH --output=sh_output_milscratch
-#SBATCH --error=sh_error_milscratch
-
-
-# Modules to use
-# conda activate /gscratch/zlab/tosolini/SyntheticallyTrainedLLM_Hyak/mynlpenv
+#SBATCH --output=sh_output
+#SBATCH --error=sh_error
 
 # Your programs to run.
-# python3 main_multitest.py
-srun --label python3 main_multitest_from_scratch_million.py "${@}"
+srun --label python3 main_all_test.py "${@}"

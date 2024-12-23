@@ -6,7 +6,7 @@ two_regular_classes_dir = "two_verb_classes"
 non_suppletive_allomorphy_dir = "non_suppletive_allomorphy"
 
 # Get the amount of training sentences
-training_amounts = [0] + [10 ** exp for exp in range(0, 6)]  # Not including a million since that's the other file
+training_amounts = [10 ** exp for exp in range(2, 6)]  # Not including a million since that's the other file
 
 for agreement_type_directory in [one_regular_paradigm_dir, two_regular_classes_dir, non_suppletive_allomorphy_dir]:
     for training_amount in training_amounts:

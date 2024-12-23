@@ -560,7 +560,21 @@ def main():
     parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
     parser.add_argument("--server_ip", type=str, default="", help="For distant debugging.")
     parser.add_argument("--server_port", type=str, default="", help="For distant debugging.")
+
+    # Set the random seeds
+    parser.add_argument("--rand_seed", default=42, type=int, help="The random seed for the model.")
+
     args = parser.parse_args()
+
+    # set random seeds
+    torch.manual_seed(args.rand_seed)
+    os.environ['PYTHONHASHSEED'] = str(args.rand_seed)
+    torch.cuda.manual_seed(args.rand_seed)
+    torch.cuda.manual_seed_all(args.rand_seed)
+    np.random.seed(args.rand_seed)
+    random.seed(args.rand_seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
     if args.model_type in ["bert", "roberta", "distilbert", "camembert"] and not args.mlm:
         raise ValueError(

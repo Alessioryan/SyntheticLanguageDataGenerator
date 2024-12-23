@@ -172,7 +172,7 @@ def regular_paradigms(language_name="one_regular_paradigm", num_train=1e6, num_t
         language.save_sentences(sentences=ungrammatical_sentences,
                                 filepath=os.path.join("Languages",
                                                       language_name,
-                                                      f"{num_test}_{generalization_type}_ungrammatical.txt"))
+                                                      f"{num_test}_{generalization_type}_ungrammatical_shift.txt"))
 
     # Save the training sentences
     # First, we make them full sentences again
@@ -872,11 +872,11 @@ def create_language_base():
 
 if __name__ == "__main__":
     # Generate sentences where verbs take one regular paradigm
-    # regular_paradigms()
+    regular_paradigms()
     # Generate sentences where verbs take one of two regular paradigms, where the class of the verb is not predictable
     #   but consistent across verb conjugations. The endings of the two classes are unrelated. One paradigm is twice
     #   frequent as the other
-    # two_verb_classes()
+    two_verb_classes()
     # Generate sentences where verbs take one of two sets of endings based on whether the final phoneme in the stem
     #   of the verb is a C or a V. The endings underlyingly start with a consonant, but may introcuce an epenthetic "a"
     #   to break up C$C. The epenthetic endings are twice as frequent as the non-epenthetic endings.
