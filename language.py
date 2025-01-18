@@ -665,13 +665,13 @@ class Language:
                 # We only add the final sentence, not the properties, but we keep them along until the end for debugging
                 sentences.append(inflected_words)
             # We always catch exceptions
-            except Exception:
+            except Exception as e:
                 # If we want to regenerate, then we keep track of the number of sentences we regenerated
                 if ignore_exception_sentences:
                     exception_sentences += 1
                 # Otherwise, we raise an error
                 else:
-                    raise Exception('Error raised during sentence generation. Solve above.')
+                    raise Exception(f'Error raised during sentence generation: {e}')
         # When we finish generating the number of sentences we want, then we print the number of regenerations if wanted
         if ignore_exception_sentences:
             print(f"When trying to generate {num_sentences}, {exception_sentences} were ignored. \n"

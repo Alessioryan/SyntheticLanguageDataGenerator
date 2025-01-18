@@ -1,7 +1,7 @@
 # Nothing in Languages or old languages
 Languages/**
 Old_Languages/**
-hyak_stuff/Languages/**
+hyak_stuff_non_verb_class/Languages/**
 # Allow train.json
 !/**/mylang.json
 
