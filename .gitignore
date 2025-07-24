@@ -5,8 +5,14 @@ hyak_stuff_non_verb_class/Languages/**
 # Allow train.json
 !/**/mylang.json
 
+# Hide older files
+Paper/**
+hyak_stuff_non_verb_class/**
+hyak_stuff_verb_class/**
+Exploring_Linguistic_Priors_in_Large_Language_Models.pdf
+.idea/**
+
 # These are files that help with the development of more advanced features
 customize_generator.py
 Customize_Languages/*
-
 
